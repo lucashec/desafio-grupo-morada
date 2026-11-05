@@ -20,7 +20,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 ---
 
-### [ ] T-01: Scaffold, docker compose e configuração
+### [x] T-01: Scaffold, docker compose e configuração
 - **Objetivo:** projeto TS strict com Fastify, Zod, pg, pino e Vitest. Postgres via compose com `orders_dev` e `orders_test`. Configuração validada por env.
 - **REQ:** REQ-CONC-06, REQ-SEC-04
 - **Arquivos:** `package.json` (inclui os scripts `test:stress` e `check:trace`, que apontam para arquivos criados depois), `tsconfig.json`, `eslint.config.js`, `vitest.config.ts`, `.gitignore`, `.env.example`, `docker-compose.yml`, `docker/initdb/01-create-test-db.sql`, `src/config.ts`, `test/unit/config.test.ts`
@@ -28,7 +28,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** `npm install`, `docker compose up -d db`, `npm test`, `npm run typecheck` e `npm run lint` funcionam; scripts `dev`, `migrate`, `test`, `lint` e `typecheck` existem; `.env.example` não tem segredo real.
 - **Commit:** `chore(scaffold): T-01 project setup, compose and env config [REQ-CONC-06, REQ-SEC-04]`
 
-### [ ] T-02: Migrations e infraestrutura de teste do banco
+### [x] T-02: Migrations e infraestrutura de teste do banco
 - **Objetivo:** `001_init.sql` (DDL do plano §3), runner de migrations e helpers de teste com a trava `_test` e `TRUNCATE`.
 - **REQ:** REQ-IDEM-01 (constraint), REQ-STATE-03 (base: CHECKs)
 - **Arquivos:** `src/infra/db/pool.ts`, `src/infra/db/migrate.ts`, `src/infra/db/migrations/001_init.sql`, `test/helpers/db.ts`, `test/global-setup.ts`, `test/integration/schema.test.ts`
