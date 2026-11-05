@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import { computeAmbiguousDelay, computeDelay } from '../domain/backoff.js';
+import { safeErpMessage } from '../domain/scrub.js';
 import type { ClaimedOrder } from '../infra/db/orders.repo.js';
 import { finalizeAttempt, recordErpCall, type AttemptEvent } from '../infra/db/orders.repo.js';
 import type { ErpClient, LookupResult } from '../infra/erp/erp-client.js';
@@ -35,6 +36,14 @@ async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
  */
 export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Promise<void> {
   const backoff = { baseMs: deps.retryBaseDelayMs, maxMs: deps.retryMaxDelayMs };
+  // REQ-OBS-01: scalar bindings only (REQ-OBS-05); never the payload.
+  const log = deps.logger.child({ correlationId: order.correlationId, orderId: order.id, attempt: order.attempt });
+
+  // REQ-OBS-04: every ERP message is scrubbed of this order's personal data, then bounded.
+  const customer = order.payload.customer;
+  const safe = (message: string | null | undefined) =>
+    message === null || message === undefined ? message : safeErpMessage(message, customer);
+  const safeEvent = (e: AttemptEvent): AttemptEvent => ({ ...e, errorMessage: safe(e.errorMessage) });
 
   async function finalize(f: FinalizeOpts): Promise<void> {
     const { applied } = await finalizeAttempt(deps.pool, {
@@ -44,10 +53,14 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
       correlationId: order.correlationId,
       nextAttemptDelayMs: null,
       ...f,
+      lastError: f.lastError ? { code: f.lastError.code, message: safe(f.lastError.message) ?? '' } : null,
+      event: safeEvent(f.event),
     });
     if (!applied) {
-      deps.logger.warn({ orderId: order.id, attempt: order.attempt, code: 'LEASE_LOST' }, 'lease lost; result not applied');
+      log.warn({ status: 'PROCESSING', code: 'LEASE_LOST' }, 'lease lost; result not applied');
+      return;
     }
+    log.info({ status: f.to, outcome: f.event.outcome, code: f.lastError?.code }, 'attempt finished');
   }
 
   /** Intermediate ERP call: recorded immediately so a crash cannot erase it. */
@@ -57,9 +70,11 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
       leaseToken: order.leaseToken,
       attempt: order.attempt,
       correlationId: order.correlationId,
-      event,
+      event: safeEvent(event),
     });
   }
+
+  log.info({ status: 'PROCESSING', prevStatus: order.prevStatus }, 'attempt started');
 
   /** REQ-ERP-05, REQ-RETRY-04: inconclusive outcome -> reconcile later, or hand over to a human. */
   async function ambiguousFail(lastError: { code: string; message: string }, event: AttemptEvent): Promise<void> {

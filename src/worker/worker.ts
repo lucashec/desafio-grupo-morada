@@ -3,6 +3,7 @@ import { claimNextOrder, type ClaimedOrder } from '../infra/db/orders.repo.js';
 import { withTimeouts } from '../infra/erp/call-with-timeout.js';
 import type { ErpClient } from '../infra/erp/erp-client.js';
 import type { Logger } from '../logger.js';
+import { errorFields } from '../logger.js';
 import { processClaimed } from './process-order.js';
 
 export type WorkerDeps = {
@@ -37,7 +38,13 @@ export function createWorker(deps: WorkerDeps): {
       if (claim === null) break;
       if (claim.kind === 'ABANDONED') {
         deps.logger.warn(
-          { orderId: claim.orderId, attempt: claim.attempt, status: 'NEEDS_REVIEW', code: 'LEASE_EXPIRED' },
+          {
+            correlationId: claim.correlationId,
+            orderId: claim.orderId,
+            attempt: claim.attempt,
+            status: 'NEEDS_REVIEW',
+            code: 'LEASE_EXPIRED',
+          },
           'lease expired after the last allowed attempt',
         );
         processed++;
@@ -58,7 +65,11 @@ export function createWorker(deps: WorkerDeps): {
           order,
         );
       } catch (err) {
-        deps.logger.error({ orderId: order.id, attempt: order.attempt, errMessage: (err as Error).message }, 'order processing failed');
+        // Error messages (e.g. from the driver) may echo values: log name/code only (REQ-OBS-05).
+        deps.logger.error(
+          { correlationId: order.correlationId, orderId: order.id, attempt: order.attempt, status: 'PROCESSING', ...errorFields(err) },
+          'order processing failed',
+        );
       }
       processed++;
     }
@@ -93,7 +104,7 @@ export function createWorker(deps: WorkerDeps): {
           const n = await runOnce();
           if (n === 0) await sleep(deps.config.workerPollIntervalMs);
         } catch (err) {
-          deps.logger.error({ errMessage: (err as Error).message }, 'worker loop failed');
+          deps.logger.error(errorFields(err), 'worker loop failed');
           await sleep(deps.config.workerPollIntervalMs);
         }
       }

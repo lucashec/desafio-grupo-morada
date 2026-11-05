@@ -125,7 +125,7 @@ export type ClaimedOrder = {
 
 export type ClaimResult =
   | { kind: 'CLAIMED'; order: ClaimedOrder }
-  | { kind: 'ABANDONED'; orderId: string; attempt: number };
+  | { kind: 'ABANDONED'; orderId: string; attempt: number; correlationId: string };
 
 /**
  * REQ-RETRY-05, REQ-CONC-03: atomically claims the oldest due order in one
@@ -194,7 +194,7 @@ export async function claimNextOrder(
         );
       }
       await client.query('COMMIT');
-      return { kind: 'ABANDONED', orderId: row.id, attempt: row.attempts };
+      return { kind: 'ABANDONED', orderId: row.id, attempt: row.attempts, correlationId: row.correlation_id };
     }
 
     // Case A: a normal claim. The start of the attempt is recorded before any

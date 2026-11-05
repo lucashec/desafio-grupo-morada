@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
+import { errorFields } from '../logger.js';
 
 export class AppError extends Error {
   constructor(
@@ -36,7 +37,8 @@ export function registerErrorHandling(app: FastifyInstance): void {
     if (status !== undefined && status >= 400 && status < 500) {
       return reply.status(400).send(body('MALFORMED_REQUEST', 'Malformed request'));
     }
-    request.log.error({ errName: err.name, errMessage: err.message }, 'unhandled error');
+    // Driver messages may echo input values: log name/code only (REQ-OBS-05).
+    request.log.error(errorFields(err), 'unhandled error');
     return reply.status(500).send(body('INTERNAL_ERROR', 'Internal server error'));
   });
 

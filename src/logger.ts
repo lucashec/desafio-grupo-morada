@@ -40,4 +40,14 @@ export function createLogger(opts: { level: string; stream?: DestinationStream }
   );
 }
 
+/**
+ * REQ-OBS-05: errors are logged as scalar name + code only. Messages (driver,
+ * library) may echo input values, and nested objects escape the depth-2 redact.
+ */
+export function errorFields(err: unknown): { errName: string; errCode?: string } {
+  if (!(err instanceof Error)) return { errName: typeof err };
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' ? { errName: err.name, errCode: code } : { errName: err.name };
+}
+
 export type { Logger };

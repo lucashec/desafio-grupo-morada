@@ -156,7 +156,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 > ⏸ Pausa para OK.
 
-### [ ] T-13: Observabilidade e proteção de dados nos logs
+### [x] T-13: Observabilidade e proteção de dados nos logs
 - **Objetivo:** `redact` completo, nenhum log com objeto aninhado (só campos escalares escolhidos; REQ-OBS-05), limpeza de dados pessoais nas mensagens do ERP (REQ-OBS-04), log de resposta próprio (sem body), loggers do worker com `correlationId`/`orderId`/`attempt`/`status`, correlation id propagado ao worker e aos eventos, truncamento de erros do ERP.
 - **REQ:** REQ-OBS-01, REQ-OBS-02, REQ-OBS-03, REQ-OBS-04, REQ-OBS-05
 - **Arquivos:** `src/logger.ts`, `src/app.ts`, `src/worker/*.ts`, `src/domain/scrub.ts` (limpeza da mensagem do ERP), `src/infra/db/orders.repo.ts` (truncamento), `test/helpers/log-capture.ts`, `test/unit/scrub.test.ts`, `test/integration/observability.test.ts`

@@ -2,7 +2,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createPool } from './infra/db/pool.js';
 import { FakeErpClient } from './infra/erp/fake-erp-client.js';
-import { createLogger } from './logger.js';
+import { createLogger, errorFields } from './logger.js';
 import { createWorker } from './worker/worker.js';
 
 async function main(): Promise<void> {
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
       await pool.end();
       logger.info('shutdown complete');
     } catch (err) {
-      logger.error({ errMessage: (err as Error).message }, 'error during shutdown');
+      logger.error(errorFields(err), 'error during shutdown');
       process.exitCode = 1;
     }
   };
