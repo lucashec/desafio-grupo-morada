@@ -98,7 +98,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** o ERP nunca é chamado com transação aberta (revisão + teste do hook).
 - **Commit:** `feat(worker): T-08 claim with lease and terminal outcomes [REQ-ERP-01, REQ-ERP-02, REQ-ERP-03, REQ-CONC-03, REQ-RETRY-05, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04]`
 
-### [ ] T-09: Retry com backoff exponencial + jitter
+### [x] T-09: Retry com backoff exponencial + jitter
 - **Objetivo:** `computeDelay` com `random` injetável, piso para ambíguo, desfecho `TRANSIENT_ERROR` → `RETRY_SCHEDULED` ou `FAILED`/`RETRIES_EXHAUSTED`.
 - **REQ:** REQ-RETRY-01, REQ-RETRY-02, REQ-RETRY-03, REQ-ERP-04
 - **Arquivos:** `src/domain/backoff.ts`, `src/worker/process-order.ts`, `test/unit/backoff.test.ts`, `test/integration/retry.test.ts`

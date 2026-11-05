@@ -5,6 +5,8 @@ const cases: ReadonlyArray<[string, RawErpResponse, string, string]> = [
   // label, raw response, expected create classification, expected lookup classification
   ['200', { status: 200 }, 'SUCCESS', 'FOUND'],
   ['201', { status: 201 }, 'SUCCESS', 'FOUND'],
+  ['101', { status: 101 }, 'TRANSIENT_ERROR', 'UNKNOWN'],
+  ['302', { status: 302 }, 'TRANSIENT_ERROR', 'UNKNOWN'],
   ['400', { status: 400 }, 'PERMANENT_ERROR', 'UNKNOWN'],
   ['404', { status: 404 }, 'PERMANENT_ERROR', 'NOT_FOUND'],
   ['408', { status: 408 }, 'TRANSIENT_ERROR', 'UNKNOWN'],

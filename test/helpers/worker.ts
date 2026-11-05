@@ -2,6 +2,7 @@ import type pg from 'pg';
 import type { OrderPayload } from '../../src/domain/order.js';
 import { requestHash } from '../../src/domain/request-hash.js';
 import { insertOrderIdempotent } from '../../src/infra/db/orders.repo.js';
+import type { ErpClient } from '../../src/infra/erp/erp-client.js';
 import { FakeErpClient } from '../../src/infra/erp/fake-erp-client.js';
 import { createLogger } from '../../src/logger.js';
 import { createWorker } from '../../src/worker/worker.js';
@@ -27,11 +28,11 @@ export async function createOrder(pool: pg.Pool, overrides: Record<string, unkno
   return result.order.id;
 }
 
-export function buildWorker(
+export function buildWorker<E extends ErpClient = FakeErpClient>(
   pool: pg.Pool,
-  opts: { erp?: FakeErpClient; maxAttempts?: number; random?: () => number; batchSize?: number } = {},
+  opts: { erp?: E; maxAttempts?: number; random?: () => number; batchSize?: number } = {},
 ) {
-  const erp = opts.erp ?? new FakeErpClient();
+  const erp = opts.erp ?? (new FakeErpClient() as unknown as E);
   const worker = createWorker({
     pool,
     erp,
