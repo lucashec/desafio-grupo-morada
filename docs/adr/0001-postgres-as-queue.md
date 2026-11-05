@@ -1,6 +1,6 @@
 # ADR-0001: Postgres como fila
 
-**Contexto.** Os pedidos precisam ser processados de forma assíncrona, com retry agendado e recuperação após crash. O estado do pedido já precisa ficar no Postgres por causa da rastreabilidade. O volume esperado é moderado (P-06) e o escopo é de 2 a 4 h.
+**Contexto.** Os pedidos precisam ser processados de forma assíncrona, com retry agendado e recuperação após crash. O estado do pedido já precisa ficar no Postgres por causa da rastreabilidade. O volume esperado é moderado (P-06).
 
 **Decisão.** A própria tabela `orders` é a fila: um worker no mesmo processo faz polling e reivindica pedidos com `SELECT ... FOR UPDATE SKIP LOCKED`, e um lease (`locked_until` + `lease_token`) protege contra crash. Os índices parciais cobrem só os pedidos pendentes e os que estão em voo.
 
