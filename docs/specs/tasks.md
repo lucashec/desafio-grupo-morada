@@ -87,7 +87,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** `switch` exaustivo compila com `never`; o fake não depende do banco.
 - **Commit:** `feat(erp): T-07 erp client contract, classifier and fake [REQ-ERP-07..09]`
 
-### [ ] T-08: Worker com claim/lease e desfechos SUCCESS/PERMANENT
+### [x] T-08: Worker com claim/lease e desfechos SUCCESS/PERMANENT
 - **Objetivo:** `claimNextOrder` (SKIP LOCKED, lease, `attempts+1`, `ATTEMPT_STARTED`; caso B do claim: reclaim com tentativas esgotadas → `NEEDS_REVIEW`/`LEASE_EXPIRED` + `ATTEMPT_ABANDONED` na mesma transação, sem ERP), `finalizeAttempt` guardado por `lease_token`, `runOnce`/`start`/`stop`, `process-order` para `SUCCESS` e `PERMANENT_ERROR`, worker ligado no `server.ts`.
 - **REQ:** REQ-ERP-01, REQ-ERP-02, REQ-ERP-03, REQ-CONC-03, REQ-RETRY-05, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04
 - **Arquivos:** `src/worker/worker.ts`, `src/worker/process-order.ts`, `src/infra/db/orders.repo.ts`, `src/server.ts`, `test/helpers/worker.ts` (`makeDue`, `expireLease`, `buildWorker`), `test/integration/worker-outcomes.test.ts`, `test/integration/concurrency-worker.test.ts`
