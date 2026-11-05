@@ -312,6 +312,7 @@ export interface ErpClient {
 - `honorsReference` (padrão `true`): com `true`, uma criação que grava para uma referência já registrada não cria outro pedido e devolve o `erpOrderId` existente; com `false`, cada criação que grava conta como pedido novo (ERP sem dedupe). O registro guarda o primeiro `erpOrderId` da referência.
 - Contadores: `createCalls`, `lookupCalls`, `createdCount` (pedidos efetivamente criados, a métrica de "sem duplicidade"; com `honorsReference = true`, é igual a `registry.size`).
 - `hooks.beforeCreateResponds?: (reference) => Promise<void>`: permite ao teste inspecionar o banco durante a chamada (REQ-ERP-01) ou intercalar outro worker (REQ-CONC-04), de forma determinística.
+- `hooks.beforeLookupResponds?: (reference) => Promise<void>`: o mesmo para a consulta, usado para provar que o `ATTEMPT_STARTED` da tentativa de reconciliação já está gravado quando o ERP é consultado (REQ-ERP-01).
 - `hang()`: a próxima chamada só resolve quando o teste liberar (REQ-ERP-08, com `vi.useFakeTimers`).
 
 ## 10. Diagrama: ERP processa e dá timeout

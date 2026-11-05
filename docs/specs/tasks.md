@@ -88,14 +88,15 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Commit:** `feat(erp): T-07 erp client contract, classifier and fake [REQ-ERP-07..09]`
 
 ### [ ] T-08: Worker com claim/lease e desfechos SUCCESS/PERMANENT
-- **Objetivo:** `claimNextOrder` (SKIP LOCKED, lease, `attempts+1`, `ATTEMPT_STARTED`), `finalizeAttempt` guardado por `lease_token`, `runOnce`/`start`/`stop`, `process-order` para `SUCCESS` e `PERMANENT_ERROR`, worker ligado no `server.ts`.
-- **REQ:** REQ-ERP-01, REQ-ERP-02, REQ-ERP-03, REQ-CONC-03, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04
+- **Objetivo:** `claimNextOrder` (SKIP LOCKED, lease, `attempts+1`, `ATTEMPT_STARTED`; caso B do claim: reclaim com tentativas esgotadas → `NEEDS_REVIEW`/`LEASE_EXPIRED` + `ATTEMPT_ABANDONED` na mesma transação, sem ERP), `finalizeAttempt` guardado por `lease_token`, `runOnce`/`start`/`stop`, `process-order` para `SUCCESS` e `PERMANENT_ERROR`, worker ligado no `server.ts`.
+- **REQ:** REQ-ERP-01, REQ-ERP-02, REQ-ERP-03, REQ-CONC-03, REQ-RETRY-05, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04
 - **Arquivos:** `src/worker/worker.ts`, `src/worker/process-order.ts`, `src/infra/db/orders.repo.ts`, `src/server.ts`, `test/helpers/worker.ts` (`makeDue`, `expireLease`, `buildWorker`), `test/integration/worker-outcomes.test.ts`, `test/integration/concurrency-worker.test.ts`
 - **Teste:**
   - `integration/worker-outcomes.test.ts`: `success` → `SENT`, `erpOrderId` preenchido e `createdCount=1`; **(Obr-3)** `permanent` → `FAILED`/`ERP_REJECTED`, `runOnce` 2× e 1 chamada; o hook do fake lê o banco durante a chamada e vê `PROCESSING`, `attempts=1` e `ATTEMPT_STARTED`; `RETRY_SCHEDULED` com due futuro não é reivindicado; `SENT` nunca é reivindicado; toda chamada usa `reference = order.id`.
-  - `integration/concurrency-worker.test.ts`: **(Obr-6)** 1 pedido e 2 workers em `Promise.all(runOnce)` → 1 chamada de criação e 1 `ATTEMPT_STARTED`; transação externa segurando o lock de um pedido → o worker pula para o próximo (SKIP LOCKED) sem bloquear.
+  - `integration/concurrency-worker.test.ts`: **(Obr-6)** 1 pedido e 2 workers disputando em `Promise.all(runOnce)` → 1 chamada de criação e 1 `ATTEMPT_STARTED`; variante determinística: o hook do fake, durante a chamada do worker A, roda `runOnce` do worker B, que não reivindica nada; transação externa segurando o lock de um pedido → o worker pula para o próximo (SKIP LOCKED) sem bloquear.
+  - `integration/concurrency-lease-exhausted.test.ts`: `MAX_ATTEMPTS=3`, pedido `PROCESSING` com `attempts=3` e lease vencido, 2 workers em `Promise.all(runOnce)` → `NEEDS_REVIEW`/`LEASE_EXPIRED`, `attempts=4`, lease nulo, exatamente 1 `ATTEMPT_ABANDONED` (`attempt=4`), nenhum `ATTEMPT_STARTED` com `attempt=4`, 0 criações e 0 consultas.
 - **Pronto quando:** o ERP nunca é chamado com transação aberta (revisão + teste do hook).
-- **Commit:** `feat(worker): T-08 claim with lease and terminal outcomes [REQ-ERP-01..03, REQ-CONC-03, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04]`
+- **Commit:** `feat(worker): T-08 claim with lease and terminal outcomes [REQ-ERP-01, REQ-ERP-02, REQ-ERP-03, REQ-CONC-03, REQ-RETRY-05, REQ-RETRY-06, REQ-IDEM-04, REQ-STATE-03, REQ-STATE-04]`
 
 ### [ ] T-09: Retry com backoff exponencial + jitter
 - **Objetivo:** `computeDelay` com `random` injetável, piso para ambíguo, desfecho `TRANSIENT_ERROR` → `RETRY_SCHEDULED` ou `FAILED`/`RETRIES_EXHAUSTED`.
@@ -103,20 +104,22 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Arquivos:** `src/domain/backoff.ts`, `src/worker/process-order.ts`, `test/unit/backoff.test.ts`, `test/integration/retry.test.ts`
 - **Teste:**
   - `unit/backoff.test.ts`: `random=1` → 1000/2000/4000/60000; `random=0` → 0; piso ambíguo → 1000.
-  - `integration/retry.test.ts`: **(Obr-4)** `[transient, transient, success]` com `makeDue` entre rodadas → `SENT`, `attempts=3`, `createdCount=1`; `transient` sempre com `MAX_ATTEMPTS=3` → `FAILED`/`RETRIES_EXHAUSTED` e 3 chamadas; após 1 transitório, `RETRY_SCHEDULED` e `nextAttemptAt > now`.
+  - `integration/retry.test.ts`: **(Obr-4)** `[transient, transient, success]` com `makeDue` entre rodadas → `SENT`, `attempts=3`, `createdCount=1`; `transient` sempre com `MAX_ATTEMPTS=3` → `FAILED`/`RETRIES_EXHAUSTED` e 3 chamadas; após 1 transitório, `RETRY_SCHEDULED` e `nextAttemptAt > now`; cliente ERP de teste que sempre responde `302` (classificado por `classifyCreate`) com `MAX_ATTEMPTS=3` → `FAILED`/`RETRIES_EXHAUSTED` e 3 chamadas (1xx/3xx limitado por `MAX_ATTEMPTS`, P-02).
+  - `unit/classify.test.ts`: acrescenta 101 e 302 → `TRANSIENT_ERROR` na criação e `UNKNOWN` na consulta.
 - **Pronto quando:** nenhum teste depende de esperar o backoff real.
-- **Commit:** `feat(retry): T-09 exponential backoff with full jitter [REQ-RETRY-01..03, REQ-ERP-04]`
+- **Commit:** `feat(retry): T-09 exponential backoff with full jitter [REQ-RETRY-01, REQ-RETRY-02, REQ-RETRY-03, REQ-ERP-04]`
 
 > ⏸ Pausa para OK.
 
 ### [ ] T-10: Resultados ambíguos e reconciliação (timeout e 409)
 - **Objetivo:** `AMBIGUOUS{TIMEOUT}` → `UNCERTAIN`; consulta antes de reenviar (`FOUND`/`NOT_FOUND`/`UNKNOWN`); `AMBIGUOUS{CONFLICT}` + consulta na mesma tentativa; esgotamento → `NEEDS_REVIEW`.
-- **REQ:** REQ-ERP-05, REQ-ERP-06, REQ-ERP-11, REQ-RETRY-04
-- **Arquivos:** `src/worker/process-order.ts`, `src/infra/db/orders.repo.ts` (evento intermediário), `test/integration/ambiguity.test.ts`
+- **REQ:** REQ-ERP-01, REQ-ERP-05, REQ-ERP-06, REQ-ERP-11, REQ-RETRY-04
+- **Arquivos:** `src/worker/process-order.ts`, `src/infra/db/orders.repo.ts` (evento intermediário), `src/infra/erp/fake-erp-client.ts` (hook `beforeLookupResponds`), `test/integration/ambiguity.test.ts`
 - **Teste:** `integration/ambiguity.test.ts`:
-  - **(Obr-5)** `processed_then_timeout` → `UNCERTAIN` → `makeDue` → consulta `FOUND` → `SENT`, `createdCount = 1`, 1 criação e 1 consulta.
-  - `timeout` sem gravação → consulta `NOT_FOUND` → reenvio `success` → `SENT`, `createdCount=1`.
-  - Consulta `unknown` → `UNCERTAIN`, sem `createOrder`.
+  - **(Obr-5)** `processed_then_timeout` → `UNCERTAIN` → `makeDue` → consulta `FOUND` → `SENT`, `createdCount === 1`, 1 criação e 1 consulta; repetido com `honorsReference` `true` **e** `false` (com `false`, `createdCount === 1` prova que a garantia vem de não reenviar sem consultar).
+  - `AMBIGUOUS{TIMEOUT}` + consulta `NOT_FOUND` **reenvia**: `timeout` sem gravação → consulta `NOT_FOUND` → reenvio `success` → `SENT`, 2 criações, `createdCount=1`. Em contraste, `AMBIGUOUS{CONFLICT}` + `NOT_FOUND` **não reenvia**: vai direto a `NEEDS_REVIEW` (1 criação).
+  - Consulta `unknown` → continua `UNCERTAIN` com `nextAttemptAt` no futuro, e `createCalls` não muda.
+  - O `ATTEMPT_STARTED` da tentativa de reconciliação já está gravado quando o ERP é consultado (hook `beforeLookupResponds` lê o banco: `PROCESSING`, `attempts=2`, `ATTEMPT_STARTED(2)`), e o evento `ERP_LOOKUP NOT_FOUND` já está gravado quando o reenvio acontece (hook `beforeCreateResponds`).
   - `MAX_ATTEMPTS=3`, criação `timeout` e consulta sempre `unknown` → `NEEDS_REVIEW`/`RECONCILIATION_EXHAUSTED`, 1 criação e 2 consultas.
   - `conflict_found` → `SENT`, `createdCount=1`.
   - `conflict_not_found` com `attempts=1` → `NEEDS_REVIEW`/`ERP_CONFLICT_NOT_FOUND` imediato.
@@ -126,12 +129,12 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 ### [ ] T-11: Recuperação de lease, fencing e reclaim esgotado
 - **Objetivo:** lease vencido tratado como ambíguo; gravação com lease perdido descartada com evento `LEASE_LOST`; caso B do claim (`attempts > MAX` → `NEEDS_REVIEW` sem tentativa).
-- **REQ:** REQ-CONC-04, REQ-CONC-05, REQ-RETRY-05, REQ-STATE-03
+- **REQ:** REQ-CONC-04, REQ-CONC-05, REQ-RETRY-05 (caso `attempts=2`), REQ-STATE-03
 - **Arquivos:** `src/infra/db/orders.repo.ts`, `src/worker/worker.ts`, `src/worker/process-order.ts`, `test/integration/lease.test.ts`
 - **Teste:** `integration/lease.test.ts`:
   - **(Obr-7)** crash simulado (claim sem processar) + `expireLease` → `runOnce` consulta antes de enviar e termina em `SENT`, com `createdCount=1`. Variante: `processed_then_timeout` antes do crash.
   - Fencing: o hook do fake, durante a chamada do worker A, executa `expireLease` e `runOnce` do worker B. A grava com 0 linhas afetadas, evento com `error_code=LEASE_LOST` e `to_status=NULL`, log `LEASE_LOST`, e o status final vem de B.
-  - `MAX_ATTEMPTS=3`, `attempts=3` e lease vencido → `NEEDS_REVIEW`/`LEASE_EXPIRED`, `attempts=4`, `ATTEMPT_ABANDONED` com `attempt=4`, nenhum `ATTEMPT_STARTED` com `attempt=4`, lease nulo, 0 criações e 0 consultas.
+  - (O caso `attempts=3` + lease vencido → `NEEDS_REVIEW`/`LEASE_EXPIRED` passou para a T-08, em `concurrency-lease-exhausted.test.ts`.)
   - `attempts=2` e lease vencido → tentativa 3 normal, com consulta.
 - **Pronto quando:** nenhum teste usa `sleep`; a expiração é feita via SQL.
 - **Commit:** `feat(worker): T-11 lease recovery, fencing token and abandoned reclaim [REQ-CONC-04, REQ-CONC-05, REQ-RETRY-05, REQ-STATE-03]`
@@ -163,6 +166,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
   - `X-Correlation-Id: abc-123` aparece nos eventos do worker.
   - Sequência de eventos de `processed_then_timeout` conforme REQ-OBS-03, com `duration_ms`.
   - Mensagem de erro do ERP com 1000 caracteres é gravada com ≤ 200.
+  - Ponta a ponta (REQ-OBS-04): `POST /orders` com `document`/`email` reconhecíveis; o ERP (fake `permanent` com `errorMessage` longa contendo esses valores antes e depois do caractere 200) → `order_events.error_message` e `orders.last_error_message` com ≤ 200 caracteres e **sem** os valores.
 - **Pronto quando:** a captura de logs usa um stream em memória injetado no pino (sem monkey-patch de `console`).
 - **Commit:** `feat(observability): T-13 structured logs, redact and event trail [REQ-OBS-01..05]`
 
@@ -183,7 +187,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
   - prova negativa específica de `it.each`: remover o marcador de um `it.each` (ex.: `unit/state-machine.test.ts`) faz o script falhar citando arquivo e linha do teste sem marcador;
   - `npm run test:stress` passa (5× seguidas);
   - suíte completa + typecheck + lint verdes.
-- **Pronto quando:** o README tem comandos copiáveis, arquitetura, estratégia, diagrama do timeout, as seções "Implementado" e "Proposta para produção" separadas, "Garantias e limitações" a revisão adversarial com ≥ 5 riscos (coberto por teste? o que foi feito?) e uma nota explícita: "`check:trace` verifica que existe ao menos um teste por requisito; não avalia a qualidade nem a suficiência desses testes".
+- **Pronto quando:** o README tem comandos copiáveis, arquitetura, estratégia, diagrama do timeout, as seções "Implementado" e "Proposta para produção" separadas, "Garantias e limitações" a revisão adversarial com ≥ 5 riscos, uma frase explícita de que a garantia contra duplicidade no ERP vem de (a) **nunca reenviar sem consultar** após resultado ambíguo e (b) **o ERP honrar a referência** (`order.id`, premissa P-01), com o teste `honorsReference=false` como evidência de (a) (coberto por teste? o que foi feito?) e uma nota explícita: "`check:trace` verifica que existe ao menos um teste por requisito; não avalia a qualidade nem a suficiência desses testes".
 - **Commit:** `docs: T-14 traceability matrix, README and adversarial review`
 
 ---
