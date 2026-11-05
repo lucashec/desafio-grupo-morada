@@ -172,7 +172,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** a captura de logs usa um stream em memória injetado no pino (sem monkey-patch de `console`).
 - **Commit:** `feat(observability): T-13 structured logs, redact and event trail [REQ-OBS-01, REQ-OBS-02, REQ-OBS-03, REQ-OBS-04, REQ-OBS-05]`
 
-### [ ] T-14: Fechamento: rastreabilidade, README e revisão adversarial
+### [x] T-14: Fechamento: rastreabilidade, README e revisão adversarial
 - **Objetivo:** Fase 5 do processo.
 - **REQ:** todos (verificação de cobertura); documenta REQ-IDEM-05, REQ-ERP-10, REQ-RETRY-09, REQ-OBS-06 e REQ-SEC-05 como proposta
 - **Arquivos:** `scripts/check-traceability.mjs`, `docs/specs/traceability.md` (gerado), `README.md`

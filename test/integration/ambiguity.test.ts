@@ -168,6 +168,23 @@ describe('ambiguous outcomes and reconciliation', () => {
     expect(erp.lookupCalls).toBe(2);
   });
 
+  // REQ-RETRY-04, REQ-ERP-06, REQ-ERP-09
+  it('honorsReference=false + lookup unavailable: NEEDS_REVIEW without resending, createdCount 1 (Obr-9)', async () => {
+    const id = await createOrder(pool);
+    const { worker, erp } = setup(
+      { scenarios: ['processed_then_timeout'], lookupScenarios: ['unknown'], honorsReference: false },
+      3,
+    );
+
+    const view = await runUntilStable(worker, id);
+
+    expect(view?.status).toBe('NEEDS_REVIEW');
+    expect(view?.lastError?.code).toBe('RECONCILIATION_EXHAUSTED');
+    expect(erp.createCalls).toBe(1);
+    expect(erp.lookupCalls).toBe(2);
+    expect(erp.createdCount).toBe(1);
+  });
+
   // REQ-ERP-01, REQ-ERP-06
   it('records ATTEMPT_STARTED before the lookup and the NOT_FOUND lookup event before the resend', async () => {
     const id = await createOrder(pool);

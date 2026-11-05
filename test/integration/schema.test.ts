@@ -56,11 +56,13 @@ describe('schema', () => {
     expect(pgError(err).constraint).toBe('orders_status_ck');
   });
 
+  // REQ-IDEM-01, REQ-STATE-03
   it('refuses to use a database whose name does not end in _test', () => {
     expect(() => assertTestDatabase('postgres://u:p@localhost:5432/orders_dev')).toThrow(/_test/);
     expect(() => assertTestDatabase('postgres://u:p@localhost:5432/orders_test')).not.toThrow();
   });
 
+  // REQ-IDEM-01, REQ-STATE-03
   it('is idempotent: running migrations again applies nothing', async () => {
     const applied = await migrate(pool);
     expect(applied).toEqual([]);
