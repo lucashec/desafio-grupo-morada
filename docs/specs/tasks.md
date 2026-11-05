@@ -66,7 +66,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** `npm run test:stress` (5 execuções seguidas de `test/integration/concurrency-*.test.ts`, parando na primeira falha; na T-14 ele cobre `concurrency-post`, `concurrency-worker` e `concurrency-reprocess`) passa no fechamento da tarefa. Fora da T-05 e da T-14, o stress não é obrigatório.
 - **Commit:** `feat(idempotency): T-05 unique key + request hash [REQ-IDEM-01..03, REQ-CONC-01, REQ-CONC-02]`
 
-### [ ] T-06: Máquina de estados
+### [x] T-06: Máquina de estados
 - **Objetivo:** `TRANSITIONS` e `assertTransition` no domínio, como função pura.
 - **REQ:** REQ-STATE-01, REQ-STATE-02
 - **Arquivos:** `src/domain/state-machine.ts`, `test/unit/state-machine.test.ts`
