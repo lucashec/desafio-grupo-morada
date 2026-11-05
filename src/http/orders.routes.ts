@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { z } from 'zod';
 import { IDEMPOTENCY_KEY_RE, orderPayloadSchema } from '../domain/order.js';
 import { requestHash } from '../domain/request-hash.js';
-import { findOrderView, insertOrderIdempotent } from '../infra/db/orders.repo.js';
+import { findOrderView, insertOrderIdempotent, requestReprocess } from '../infra/db/orders.repo.js';
 import { AppError } from './errors.js';
 
 /** Validation details carry path + rule only, never the received value (REQ-API-02). */
@@ -17,6 +17,9 @@ function orderNotFound(): AppError {
 }
 
 const uuidSchema = z.uuid();
+
+// REQ-RETRY-07: optional free-text reason; stored in the event, never logged.
+const reprocessBodySchema = z.strictObject({ reason: z.string().min(1).max(200).optional() });
 
 export function registerOrderRoutes(app: FastifyInstance, pool: pg.Pool): void {
   app.post('/orders', async (request, reply) => {
@@ -60,5 +63,23 @@ export function registerOrderRoutes(app: FastifyInstance, pool: pg.Pool): void {
     const view = await findOrderView(pool, request.params.id);
     if (!view) throw orderNotFound();
     return view;
+  });
+
+  app.post<{ Params: { id: string } }>('/orders/:id/reprocess', async (request, reply) => {
+    if (!uuidSchema.safeParse(request.params.id).success) throw orderNotFound();
+    const parsed = reprocessBodySchema.safeParse(request.body ?? {});
+    if (!parsed.success) throw validationError(parsed.error);
+
+    const result = await requestReprocess(pool, { id: request.params.id, reason: parsed.data.reason ?? null });
+    switch (result.kind) {
+      case 'ACCEPTED':
+        return reply.status(202).send({ id: request.params.id, status: result.status });
+      case 'INVALID_STATE':
+        throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Only FAILED or NEEDS_REVIEW orders can be reprocessed', {
+          currentStatus: result.currentStatus,
+        });
+      case 'NOT_FOUND':
+        throw orderNotFound();
+    }
   });
 }

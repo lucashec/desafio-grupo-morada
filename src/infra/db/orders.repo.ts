@@ -321,6 +321,45 @@ export async function finalizeAttempt(pool: pg.Pool, f: Finalize): Promise<{ app
   }
 }
 
+export type ReprocessResult =
+  | { kind: 'ACCEPTED'; status: OrderStatus }
+  | { kind: 'INVALID_STATE'; currentStatus: OrderStatus }
+  | { kind: 'NOT_FOUND' };
+
+/**
+ * REQ-RETRY-07/08: the decision is a single guarded UPDATE with its event in the
+ * same statement. A concurrent second call waits for the row lock, re-checks the
+ * WHERE against the committed row and affects 0 rows. The follow-up SELECT only
+ * picks the error (404 vs 409); it never decides whether the transition happens.
+ */
+export async function requestReprocess(
+  pool: pg.Pool,
+  input: { id: string; reason: string | null },
+): Promise<ReprocessResult> {
+  const updated = await pool.query<{ to_status: OrderStatus }>(
+    `WITH upd AS (
+       UPDATE orders
+       SET status = CASE status WHEN 'FAILED' THEN 'PENDING' ELSE 'UNCERTAIN' END,
+           attempts = 0, last_error_code = NULL, last_error_message = NULL,
+           next_attempt_at = now(), updated_at = now()
+       WHERE id = $1 AND status IN ('FAILED', 'NEEDS_REVIEW')
+       RETURNING id, status, correlation_id
+     )
+     INSERT INTO order_events (order_id, type, from_status, to_status, reason, correlation_id)
+     SELECT id, 'REPROCESS_REQUESTED',
+            CASE status WHEN 'PENDING' THEN 'FAILED' ELSE 'NEEDS_REVIEW' END, status, $2, correlation_id
+     FROM upd
+     RETURNING to_status`,
+    [input.id, input.reason],
+  );
+  const row = updated.rows[0];
+  if (row) return { kind: 'ACCEPTED', status: row.to_status };
+
+  const current = await pool.query<{ status: OrderStatus }>('SELECT status FROM orders WHERE id = $1', [input.id]);
+  const found = current.rows[0];
+  return found ? { kind: 'INVALID_STATE', currentStatus: found.status } : { kind: 'NOT_FOUND' };
+}
+
 /** Informational event for intermediate ERP calls that change no status. */
 export async function recordErpCall(
   pool: pg.Pool,

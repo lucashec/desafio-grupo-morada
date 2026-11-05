@@ -139,7 +139,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** nenhum teste usa `sleep`; a expiração é feita via SQL.
 - **Commit:** `feat(worker): T-11 lease recovery, fencing token and abandoned reclaim [REQ-CONC-04, REQ-CONC-05, REQ-RETRY-05, REQ-STATE-03]`
 
-### [ ] T-12: Reprocessamento atômico
+### [x] T-12: Reprocessamento atômico
 - **Objetivo:** `POST /orders/:id/reprocess` com `reason` opcional, decidido por um único `UPDATE ... WHERE status IN ('FAILED','NEEDS_REVIEW')` com o evento na CTE; leitura posterior só para 404/409.
 - **REQ:** REQ-RETRY-07, REQ-RETRY-08, REQ-STATE-03
 - **Arquivos:** `src/http/orders.routes.ts`, `src/infra/db/orders.repo.ts`, `test/integration/reprocess.test.ts`, `test/integration/concurrency-reprocess.test.ts`
