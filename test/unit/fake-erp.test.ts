@@ -135,6 +135,21 @@ describe('FakeErpClient', () => {
   });
 
   // REQ-ERP-09
+  it('runs beforeLookupResponds before the lookup answers', async () => {
+    const seen: string[] = [];
+    const fake = new FakeErpClient({
+      hooks: {
+        beforeLookupResponds: (reference) => {
+          seen.push(reference);
+          return Promise.resolve();
+        },
+      },
+    });
+    expect(await fake.lookupByReference('ref-1')).toEqual({ kind: 'NOT_FOUND' });
+    expect(seen).toEqual(['ref-1']);
+  });
+
+  // REQ-ERP-09
   it('hang() holds the next call until released, without timers', async () => {
     const fake = new FakeErpClient();
     const release = fake.hang();

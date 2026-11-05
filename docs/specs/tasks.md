@@ -111,7 +111,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 > ⏸ Pausa para OK.
 
-### [ ] T-10: Resultados ambíguos e reconciliação (timeout e 409)
+### [x] T-10: Resultados ambíguos e reconciliação (timeout e 409)
 - **Objetivo:** `AMBIGUOUS{TIMEOUT}` → `UNCERTAIN`; consulta antes de reenviar (`FOUND`/`NOT_FOUND`/`UNKNOWN`); `AMBIGUOUS{CONFLICT}` + consulta na mesma tentativa; esgotamento → `NEEDS_REVIEW`.
 - **REQ:** REQ-ERP-01, REQ-ERP-05, REQ-ERP-06, REQ-ERP-11, REQ-RETRY-04
 - **Arquivos:** `src/worker/process-order.ts`, `src/infra/db/orders.repo.ts` (evento intermediário), `src/infra/erp/fake-erp-client.ts` (hook `beforeLookupResponds`), `test/integration/ambiguity.test.ts`

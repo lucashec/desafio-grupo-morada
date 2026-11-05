@@ -1,8 +1,8 @@
 import type pg from 'pg';
-import { computeDelay } from '../domain/backoff.js';
+import { computeAmbiguousDelay, computeDelay } from '../domain/backoff.js';
 import type { ClaimedOrder } from '../infra/db/orders.repo.js';
-import { finalizeAttempt } from '../infra/db/orders.repo.js';
-import type { ErpClient } from '../infra/erp/erp-client.js';
+import { finalizeAttempt, recordErpCall, type AttemptEvent } from '../infra/db/orders.repo.js';
+import type { ErpClient, LookupResult } from '../infra/erp/erp-client.js';
 import type { Logger } from '../logger.js';
 
 export type ProcessDeps = {
@@ -16,19 +16,25 @@ export type ProcessDeps = {
 };
 
 type FinalizeOpts = {
-  to: 'SENT' | 'FAILED' | 'RETRY_SCHEDULED';
+  to: 'SENT' | 'FAILED' | 'RETRY_SCHEDULED' | 'UNCERTAIN' | 'NEEDS_REVIEW';
   erpOrderId?: string | null;
   lastError?: { code: string; message: string } | null;
   nextAttemptDelayMs?: number | null;
-  event: { type: 'ERP_CREATE'; outcome: string; errorCode?: string | null; errorMessage?: string | null; durationMs: number };
+  event: AttemptEvent;
 };
 
-/** Runs one claimed attempt; the lease is held, so the outcome can be applied. */
-export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Promise<void> {
+async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
   const started = performance.now();
-  // The order id is the ERP reference: the ERP deduplicates by it (REQ-IDEM-04).
-  const result = await deps.erp.createOrder(order.id, order.payload);
-  const durationMs = Math.round(performance.now() - started);
+  const result = await fn();
+  return [result, Math.round(performance.now() - started)];
+}
+
+/**
+ * Runs one claimed attempt (plan §7). The lease is held, so the outcome can be applied.
+ * Never re-sends after an ambiguous outcome without asking the ERP first.
+ */
+export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Promise<void> {
+  const backoff = { baseMs: deps.retryBaseDelayMs, maxMs: deps.retryMaxDelayMs };
 
   async function finalize(f: FinalizeOpts): Promise<void> {
     const { applied } = await finalizeAttempt(deps.pool, {
@@ -44,6 +50,67 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
     }
   }
 
+  /** Intermediate ERP call: recorded immediately so a crash cannot erase it. */
+  async function record(event: AttemptEvent): Promise<void> {
+    await recordErpCall(deps.pool, {
+      orderId: order.id,
+      leaseToken: order.leaseToken,
+      attempt: order.attempt,
+      correlationId: order.correlationId,
+      event,
+    });
+  }
+
+  /** REQ-ERP-05, REQ-RETRY-04: inconclusive outcome -> reconcile later, or hand over to a human. */
+  async function ambiguousFail(lastError: { code: string; message: string }, event: AttemptEvent): Promise<void> {
+    if (order.attempt < deps.maxAttempts) {
+      await finalize({
+        to: 'UNCERTAIN',
+        lastError,
+        nextAttemptDelayMs: computeAmbiguousDelay(order.attempt, backoff, deps.random),
+        event,
+      });
+    } else {
+      await finalize({
+        to: 'NEEDS_REVIEW',
+        lastError: { code: 'RECONCILIATION_EXHAUSTED', message: `${lastError.code}: ${lastError.message}` },
+        event,
+      });
+    }
+  }
+
+  async function lookup(): Promise<[LookupResult, AttemptEvent]> {
+    const [result, durationMs] = await timed(() => deps.erp.lookupByReference(order.id));
+    const event: AttemptEvent =
+      result.kind === 'UNKNOWN'
+        ? { type: 'ERP_LOOKUP', outcome: 'UNKNOWN', errorCode: result.code, errorMessage: result.message, durationMs }
+        : { type: 'ERP_LOOKUP', outcome: result.kind, durationMs };
+    return [result, event];
+  }
+
+  // REQ-ERP-06, REQ-CONC-05: the previous attempt may have reached the ERP; ask before sending.
+  if (order.prevStatus === 'UNCERTAIN' || order.prevStatus === 'PROCESSING') {
+    const [found, event] = await lookup();
+    switch (found.kind) {
+      case 'FOUND':
+        await finalize({ to: 'SENT', erpOrderId: found.erpOrderId, event });
+        return;
+      case 'NOT_FOUND':
+        await record(event);
+        break;
+      case 'UNKNOWN':
+        await ambiguousFail({ code: 'ERP_LOOKUP_UNKNOWN', message: found.message }, event);
+        return;
+      default: {
+        const exhaustive: never = found;
+        throw new Error(`unknown lookup result ${String(exhaustive)}`);
+      }
+    }
+  }
+
+  // REQ-IDEM-04: the order id is the stable ERP reference on every attempt.
+  const [result, durationMs] = await timed(() => deps.erp.createOrder(order.id, order.payload));
+
   switch (result.kind) {
     case 'SUCCESS':
       await finalize({
@@ -51,7 +118,7 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
         erpOrderId: result.erpOrderId,
         event: { type: 'ERP_CREATE', outcome: 'SUCCESS', durationMs },
       });
-      break;
+      return;
     case 'PERMANENT_ERROR':
       await finalize({
         to: 'FAILED',
@@ -64,10 +131,10 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
           durationMs,
         },
       });
-      break;
+      return;
     case 'TRANSIENT_ERROR': {
-      const event = {
-        type: 'ERP_CREATE' as const,
+      const event: AttemptEvent = {
+        type: 'ERP_CREATE',
         outcome: 'TRANSIENT_ERROR',
         errorCode: result.code,
         errorMessage: result.message,
@@ -77,24 +144,49 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
         await finalize({
           to: 'RETRY_SCHEDULED',
           lastError: { code: result.code, message: result.message },
-          nextAttemptDelayMs: computeDelay(
-            order.attempt,
-            { baseMs: deps.retryBaseDelayMs, maxMs: deps.retryMaxDelayMs },
-            deps.random,
-          ),
+          nextAttemptDelayMs: computeDelay(order.attempt, backoff, deps.random),
           event,
         });
       } else {
         await finalize({ to: 'FAILED', lastError: { code: 'RETRIES_EXHAUSTED', message: result.message }, event });
       }
-      break;
+      return;
     }
-    case 'AMBIGUOUS':
-      throw new Error(`outcome not handled yet: ${result.kind} ${result.cause}`);
+    case 'AMBIGUOUS': {
+      if (result.cause === 'TIMEOUT') {
+        await ambiguousFail(
+          { code: 'ERP_TIMEOUT', message: 'ERP create timed out; outcome unknown' },
+          { type: 'ERP_CREATE', outcome: 'AMBIGUOUS_TIMEOUT', durationMs },
+        );
+        return;
+      }
+      // REQ-ERP-11: 409 says the reference exists; confirm in the same attempt.
+      await record({ type: 'ERP_CREATE', outcome: 'AMBIGUOUS_CONFLICT', durationMs });
+      const [found, event] = await lookup();
+      switch (found.kind) {
+        case 'FOUND':
+          await finalize({ to: 'SENT', erpOrderId: found.erpOrderId, event });
+          return;
+        case 'NOT_FOUND':
+          // The ERP contradicts itself; re-sending cannot resolve it.
+          await finalize({
+            to: 'NEEDS_REVIEW',
+            lastError: { code: 'ERP_CONFLICT_NOT_FOUND', message: 'ERP reported a conflict but the lookup found no order' },
+            event,
+          });
+          return;
+        case 'UNKNOWN':
+          await ambiguousFail({ code: 'ERP_LOOKUP_UNKNOWN', message: found.message }, event);
+          return;
+        default: {
+          const exhaustive: never = found;
+          throw new Error(`unknown lookup result ${String(exhaustive)}`);
+        }
+      }
+    }
     default: {
       const exhaustive: never = result;
       throw new Error(`unknown create result ${String(exhaustive)}`);
     }
   }
 }
-

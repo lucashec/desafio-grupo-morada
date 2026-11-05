@@ -18,7 +18,10 @@ export interface FakeErpOptions {
   lookupScenarios?: LookupScenario[];
   /** true (default): the ERP deduplicates by reference. false: every recording call creates a new order. */
   honorsReference?: boolean;
-  hooks?: { beforeCreateResponds?: (reference: string) => Promise<void> };
+  hooks?: {
+    beforeCreateResponds?: (reference: string) => Promise<void>;
+    beforeLookupResponds?: (reference: string) => Promise<void>;
+  };
   /** Overrides the simulated ERP error text (e.g. oversized messages for truncation tests). */
   errorCode?: string;
   errorMessage?: string;
@@ -130,6 +133,7 @@ export class FakeErpClient implements ErpClient {
       }
     }
 
+    await this.hooks.beforeLookupResponds?.(reference);
     const kind = classifyLookup(raw);
     switch (kind) {
       case 'FOUND':
