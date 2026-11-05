@@ -11,7 +11,7 @@ Estado vivo do trabalho e registro de desvios de processo. Atualizado a cada tar
 | 2. Plano + ADRs | aprovada (2026-11-05) |
 | 3. Tarefas | aprovada (2026-11-05) |
 | 4. Implementação | T-01..T-13 concluídas (test:stress 5/5 verde na T-05, T-08, T-10, T-12 e T-13) |
-| 5. Fechamento | T-14 concluída: `check:trace` verde (53 requisitos, 23 arquivos de teste), 190 testes, test:stress 5/5, README validado em clone limpo; aguardando revisão final do usuário |
+| 5. Fechamento | T-14 concluída: `check:trace` verde (53 requisitos, 23 arquivos de teste), 190 testes, test:stress 5/5, README validado em clone limpo. **Projeto concluído** (2026-11-05). |
 
 Pré-requisito local: Docker Desktop em execução (`docker compose up -d --wait db`).
 
