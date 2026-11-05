@@ -16,6 +16,7 @@ Documentos de referência:
 - `docs/specs/tasks.md`: tarefas ordenadas (T-01...).
 - `docs/specs/traceability.md`: matriz REQ-ID -> teste, **gerada** por `npm run check:trace -- --write` (não editar à mão).
 - `docs/adr/`: decisões de arquitetura.
+- `STATE.md`: estado atual das fases e registro de desvios de processo.
 
 ## Stack
 

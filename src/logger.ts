@@ -11,7 +11,10 @@ export const REDACT_PATHS = [
   '*.body',
   'customer',
   '*.customer',
+  // pino wildcards match exactly one level, so top-level keys need their own entry.
+  'document',
   '*.document',
+  'email',
   '*.email',
   '*.name',
   'notes',
