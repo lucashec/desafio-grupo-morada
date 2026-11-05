@@ -300,12 +300,19 @@ O sistema deve registrar em `order_events` (somente inserções) uma linha por c
 - Given cenário `processed_then_timeout` processado até `SENT`, When os eventos são lidos, Then aparecem, em ordem: `CREATED`, `ATTEMPT_STARTED (1)`, `ERP_CREATE (AMBIGUOUS/TIMEOUT)`, `ATTEMPT_STARTED (2)`, `ERP_LOOKUP (FOUND)`, com `duration_ms` nas chamadas ao ERP e transições coerentes.
 
 ### REQ-OBS-04 [IMPLEMENTAR]
-O sistema deve guardar erros do ERP apenas como `error_code` (até 64 caracteres) e `error_message` (truncada em 200 caracteres), nunca o body bruto da resposta. Antes de gravar, os valores de `customer.document`, `customer.email` e `customer.name` do payload do pedido que aparecerem na mensagem são substituídos por `[REDACTED]` (o ERP pode ecoar dados do pedido no erro). A substituição vem antes do truncamento, para que um valor cortado ao meio também não vaze.
+O sistema deve guardar erros do ERP apenas como `error_code` (até 64 caracteres) e `error_message` (truncada em 200 caracteres), nunca o body bruto da resposta. Antes de gravar, os valores de `customer.document`, `customer.email` e `customer.name` do payload do pedido que aparecerem na mensagem são substituídos por `[REDACTED]` (o ERP pode ecoar dados do pedido no erro). A substituição vem antes do truncamento, para que um valor cortado ao meio também não vaze. Regras:
+  - `document` é substituído na forma só com dígitos e também formatado (dígitos intercalados por `.`, `-`, `/` ou espaço, ex.: `987.654.321-00`);
+  - `email` e `name` são substituídos sem diferenciar maiúsculas de minúsculas;
+  - `name` só é substituído se tiver pelo menos 4 caracteres (nomes mais curtos gerariam falsos positivos em qualquer texto; risco aceito P-08);
+  - os valores mais longos são substituídos primeiro (um valor contido em outro não deixa sobra).
+  - Isso é **mitigação em profundidade, não garantia**: o ERP pode ecoar o dado transformado (abreviado, mascarado parcialmente, codificado), e esses casos não são detectados.
 - Given `FakeErpClient` retornando mensagem de 1000 caracteres, When o erro é gravado, Then `error_message` tem no máximo 200 caracteres.
 - Given pedido criado via `POST /orders` com `document`/`email` reconhecíveis e um ERP que devolve mensagem longa contendo esses valores (antes e depois do caractere 200), When o worker processa, Then o `error_message` em `order_events` (e em `orders.last_error_message`) tem no máximo 200 caracteres e não contém os valores.
+- Given mensagem em que o `document` começa antes da posição 200 e termina depois dela, When gravada, Then nenhum prefixo de 4 ou mais dígitos do documento aparece no `error_message`.
+- Given mensagem com o `document` formatado (`987.654.321-00`) e o `email` em maiúsculas, When gravada, Then nenhum dos dois aparece.
 
 ### REQ-OBS-05 [IMPLEMENTAR]
-O sistema nunca deve logar o payload do pedido nem dados pessoais: o body das requisições não é logado e o logger aplica `redact` (censura) a `customer`, `document`, `email`, `name`, `notes`, `payload`, `req.headers.authorization` e `req.headers.cookie`, em qualquer nível de aninhamento usado pelo código.
+O sistema nunca deve logar o payload do pedido nem dados pessoais: o body das requisições não é logado e o logger aplica `redact` (censura) a `customer`, `document`, `email`, `name`, `notes`, `payload`, `req.headers.authorization` e `req.headers.cookie`, em qualquer nível de aninhamento usado pelo código. Como o `redact` cobre só até o nível 2, a regra primária é: **nenhum log recebe objetos aninhados** (payload, request, reply, resposta do ERP, erro); o código loga apenas campos escalares escolhidos (`correlationId`, `orderId`, `attempt`, `status`, `code`, `method`, `route`, `statusCode`, `durationMs`).
 - Given payload com marcadores únicos (ex.: `document = "98765432100"`, `email = "marker@example.test"`), When o pedido é criado, processado em todos os cenários do fake e consultado, Then nenhum log capturado contém os marcadores.
 - Given um log acidental do tipo `logger.info({ payload })`, When emitido, Then o valor aparece como `[REDACTED]`.
 
@@ -356,6 +363,7 @@ O sistema deveria ter autenticação (API key por cliente ou OAuth2 client crede
 - **P-05**: o cliente gera uma `Idempotency-Key` por intenção de negócio (ex.: UUID por checkout) e a reutiliza ao repetir a mesma requisição.
 - **P-06**: volume moderado (dezenas de pedidos por segundo); polling no Postgres é suficiente.
 - **P-07**: um pedido da API corresponde a exatamente um pedido no ERP.
+- **P-08 (risco aceito)**: na limpeza de mensagens do ERP (REQ-OBS-04), nomes com menos de 4 caracteres não são substituídos, e ecos transformados (abreviados, parcialmente mascarados, codificados) não são detectados. A limpeza é mitigação em profundidade; a defesa principal é o ERP não ecoar dados pessoais e o sistema nunca logar a mensagem.
 
 ## Perguntas em aberto
 

@@ -145,22 +145,24 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Arquivos:** `src/http/orders.routes.ts`, `src/infra/db/orders.repo.ts`, `test/integration/reprocess.test.ts`, `test/integration/concurrency-reprocess.test.ts`
 - **Teste:** `integration/reprocess.test.ts`:
   - `FAILED` → 202 `PENDING`, `attempts=0`, `reason` no evento e eventos anteriores preservados.
+  - `NEEDS_REVIEW` → 202 `UNCERTAIN` **sem chamar o ERP no ato** (`createCalls = lookupCalls = 0` após o reprocess, antes do `runOnce`).
   - `NEEDS_REVIEW` com pedido já no ERP → 202 `UNCERTAIN` → `runOnce` → consulta → `SENT` sem nova criação.
   - `PENDING`/`PROCESSING`/`RETRY_SCHEDULED`/`UNCERTAIN`/`SENT` → 409 com `currentStatus`, sem evento.
   - `reason` com 201 caracteres → 400; UUID inexistente → 404.
   - `integration/concurrency-reprocess.test.ts` (entra no `test:stress`): N=10 concorrentes partindo de `FAILED` e de `NEEDS_REVIEW` → 1×202, 9×409, 1 `REPROCESS_REQUESTED`.
   - Repetir após aceito → 409, sem evento.
-- **Pronto quando:** não há SELECT antes do UPDATE no caminho de decisão (revisão de código).
+- **Pronto quando:** não há SELECT antes do UPDATE no caminho de decisão (revisão de código); `npm run test:stress` 5/5 verde ao fechar.
 - **Commit:** `feat(reprocess): T-12 atomic guarded reprocess endpoint [REQ-RETRY-07, REQ-RETRY-08, REQ-STATE-03]`
 
 > ⏸ Pausa para OK.
 
 ### [ ] T-13: Observabilidade e proteção de dados nos logs
-- **Objetivo:** `redact` completo, log de resposta próprio (sem body), loggers do worker com `correlationId`/`orderId`/`attempt`/`status`, correlation id propagado ao worker e aos eventos, truncamento de erros do ERP.
+- **Objetivo:** `redact` completo, nenhum log com objeto aninhado (só campos escalares escolhidos; REQ-OBS-05), limpeza de dados pessoais nas mensagens do ERP (REQ-OBS-04), log de resposta próprio (sem body), loggers do worker com `correlationId`/`orderId`/`attempt`/`status`, correlation id propagado ao worker e aos eventos, truncamento de erros do ERP.
 - **REQ:** REQ-OBS-01, REQ-OBS-02, REQ-OBS-03, REQ-OBS-04, REQ-OBS-05
-- **Arquivos:** `src/logger.ts`, `src/app.ts`, `src/worker/*.ts`, `src/infra/erp/fake-erp-client.ts` (mensagem longa), `src/infra/db/orders.repo.ts` (truncamento), `test/helpers/log-capture.ts`, `test/integration/observability.test.ts`
+- **Arquivos:** `src/logger.ts`, `src/app.ts`, `src/worker/*.ts`, `src/domain/scrub.ts` (limpeza da mensagem do ERP), `src/infra/db/orders.repo.ts` (truncamento), `test/helpers/log-capture.ts`, `test/unit/scrub.test.ts`, `test/integration/observability.test.ts`
 - **Teste:** `integration/observability.test.ts`:
-  - **(Obr-8)** `POST /orders` real (via `app.inject`, com app e worker usando o logger da captura) e payload com `document`/`email`/`name` reconhecíveis e únicos passa por criação, replay, 400, todos os cenários do fake, reprocess com `reason` marcado e GET; a **saída inteira** do stream de log (todas as linhas, todos os níveis) é varrida e não contém nenhum marcador.
+  - **(Obr-8)** `POST /orders` real (via `app.inject`, com app e worker usando o logger da captura) e payload com `document`/`email`/`name` reconhecíveis e únicos passa por criação, replay, 400, todos os cenários do fake (incluindo erro do ERP cuja mensagem contém os marcadores), reprocess com `reason` marcado e GET; a **saída inteira** do stream de log (request, worker e erro do ERP; todas as linhas, todos os níveis) é varrida e não contém nenhum marcador.
+  - `unit/scrub.test.ts`: document só dígitos e formatado; email em maiúsculas; name com < 4 caracteres não é substituído; valor mais longo primeiro; document atravessando a posição 200 não deixa prefixo ≥ 4 dígitos após o truncamento.
   - `logger.info({ payload })` → `[REDACTED]`.
   - Todo log do worker sobre o pedido tem os 4 campos.
   - `X-Correlation-Id: abc-123` aparece nos eventos do worker.
@@ -168,7 +170,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
   - Mensagem de erro do ERP com 1000 caracteres é gravada com ≤ 200.
   - Ponta a ponta (REQ-OBS-04): `POST /orders` com `document`/`email` reconhecíveis; o ERP (fake `permanent` com `errorMessage` longa contendo esses valores antes e depois do caractere 200) → `order_events.error_message` e `orders.last_error_message` com ≤ 200 caracteres e **sem** os valores.
 - **Pronto quando:** a captura de logs usa um stream em memória injetado no pino (sem monkey-patch de `console`).
-- **Commit:** `feat(observability): T-13 structured logs, redact and event trail [REQ-OBS-01..05]`
+- **Commit:** `feat(observability): T-13 structured logs, redact and event trail [REQ-OBS-01, REQ-OBS-02, REQ-OBS-03, REQ-OBS-04, REQ-OBS-05]`
 
 ### [ ] T-14: Fechamento: rastreabilidade, README e revisão adversarial
 - **Objetivo:** Fase 5 do processo.
@@ -187,7 +189,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
   - prova negativa específica de `it.each`: remover o marcador de um `it.each` (ex.: `unit/state-machine.test.ts`) faz o script falhar citando arquivo e linha do teste sem marcador;
   - `npm run test:stress` passa (5× seguidas);
   - suíte completa + typecheck + lint verdes.
-- **Pronto quando:** o README tem comandos copiáveis, arquitetura, estratégia, diagrama do timeout, as seções "Implementado" e "Proposta para produção" separadas, "Garantias e limitações" a revisão adversarial com ≥ 5 riscos (coberto por teste? o que foi feito?), a frase literal "A garantia contra duplicidade no ERP vem de (a) nunca reenviar após resultado ambíguo (timeout, conflito ou lease vencido) sem consultar o ERP antes, e (b) o ERP honrar a referência (P-01). Após 5xx o reenvio é direto (P-02, risco aceito).", com o teste `honorsReference=false` como evidência de (a), e uma nota explícita: "`check:trace` verifica que existe ao menos um teste por requisito; não avalia a qualidade nem a suficiência desses testes".
+- **Pronto quando:** (obrigatório no fechamento) a prova negativa de `it.each` foi executada e o resultado (comando, saída citando arquivo e linha, exit code ≠ 0) está registrado no commit e no `STATE.md`; o README tem comandos copiáveis, arquitetura, estratégia, diagrama do timeout, as seções "Implementado" e "Proposta para produção" separadas, "Garantias e limitações" a revisão adversarial com ≥ 5 riscos (coberto por teste? o que foi feito?), a frase literal "A garantia contra duplicidade no ERP vem de (a) nunca reenviar após resultado ambíguo (timeout, conflito ou lease vencido) sem consultar o ERP antes, e (b) o ERP honrar a referência (P-01). Após 5xx o reenvio é direto (P-02, risco aceito).", com o teste `honorsReference=false` como evidência de (a), e uma nota explícita: "`check:trace` verifica que existe ao menos um teste por requisito; não avalia a qualidade nem a suficiência desses testes".
 - **Commit:** `docs: T-14 traceability matrix, README and adversarial review`
 
 ---
