@@ -36,7 +36,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** `npm run migrate` aplica no banco de dev; a suíte aplica em `orders_test` e trunca entre testes.
 - **Commit:** `feat(db): T-02 schema, migrations and test db guard [REQ-IDEM-01, REQ-STATE-03]`
 
-### [ ] T-03: Esqueleto HTTP (erros, correlation id, limites, health)
+### [x] T-03: Esqueleto HTTP (erros, correlation id, limites, health)
 - **Objetivo:** `buildApp`, formato padrão de erro, `X-Correlation-Id`, `bodyLimit` 32 KB, 415, `GET /health`, `server.ts` (API + graceful shutdown) e logger base.
 - **REQ:** REQ-API-06, REQ-API-07, REQ-SEC-01, REQ-SEC-02, REQ-OBS-02 (parte HTTP)
 - **Arquivos:** `src/app.ts`, `src/server.ts`, `src/logger.ts`, `src/http/errors.ts`, `src/http/correlation.ts`, `src/http/health.routes.ts`, `test/helpers/app.ts`, `test/integration/http-base.test.ts`
