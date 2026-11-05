@@ -62,7 +62,7 @@ describe('POST /orders/:id/reprocess', () => {
   it('NEEDS_REVIEW -> UNCERTAIN without calling the ERP; the next run looks up and ends SENT with no new create', async () => {
     const id = await createOrder(pool);
     const erp = new FakeErpClient({ scenarios: ['conflict_found'] });
-    erp.registry.set(id, 'ERP-EXISTING'); // the order already exists in the ERP
+    erp.registry.set(id, 'ERP-EXISTING');
     await forceStatus(pool, id, 'NEEDS_REVIEW');
     const { worker } = buildWorker(pool, { erp });
 

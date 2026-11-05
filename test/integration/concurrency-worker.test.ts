@@ -32,8 +32,6 @@ describe('concurrent worker claims', () => {
     let raced: number | undefined;
     const erp = new FakeErpClient({
       hooks: {
-        // Re-entrant: while the first worker holds the lease, a second worker
-        // must find the order unclaimable and process zero orders.
         beforeCreateResponds: async () => {
           raced = await second.worker.runOnce();
         },

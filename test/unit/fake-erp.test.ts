@@ -164,7 +164,6 @@ describe('FakeErpClient', () => {
     expect(fake.createCalls).toBe(1);
     release();
     await expect(pending).resolves.toMatchObject({ kind: 'SUCCESS' });
-    // only the next call hangs
     await expect(fake.createOrder('ref-2', payload)).resolves.toMatchObject({ kind: 'SUCCESS' });
   });
 

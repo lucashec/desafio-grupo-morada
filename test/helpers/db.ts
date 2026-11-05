@@ -7,7 +7,6 @@ export function testDatabaseUrl(): string {
   return process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_URL;
 }
 
-/** Hard guard: the suite truncates tables, so it must never touch a non-test database. */
 export function assertTestDatabase(url: string): void {
   const dbName = new URL(url).pathname.replace(/^\//, '');
   if (!dbName.endsWith('_test')) {
@@ -19,10 +18,6 @@ export async function truncateAll(pool: pg.Pool): Promise<void> {
   await pool.query('TRUNCATE order_events, orders RESTART IDENTITY');
 }
 
-/**
- * Per-file test database: one pool, tables truncated before every test,
- * pool closed after the file.
- */
 export function useTestDatabase(): { pool: pg.Pool } {
   const url = testDatabaseUrl();
   assertTestDatabase(url);

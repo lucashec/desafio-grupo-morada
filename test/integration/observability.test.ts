@@ -27,7 +27,6 @@ const NOTES = 'NOTES-MARKER-91c2';
 const MARKERS = [DOCUMENT, DOCUMENT_FORMATTED, EMAIL, NAME, REASON, NOTES, 'Zelda', 'zelda'];
 
 const markedOrder = () => validOrder({ customer: { name: NAME, document: DOCUMENT, email: EMAIL }, notes: NOTES });
-/** An ERP error that echoes personal data, longer than 200 characters, with the document crossing position 200. */
 const ECHOING_MESSAGE = `customer ${NAME} <${EMAIL}> doc ${DOCUMENT_FORMATTED} rejected; ${'x'.repeat(150)}`;
 const CROSSING_MESSAGE = `${'y'.repeat(195)}${DOCUMENT} trailing ${EMAIL}`;
 
@@ -56,14 +55,12 @@ describe('observability and personal data', () => {
   it('no log line contains document, email, name, notes or reason across request, worker and ERP-error paths (Obr-8)', async () => {
     logs.lines.length = 0;
 
-    // request paths: create, replay, 400 with the markers in the body, GET
     const key = newKey();
     const created = await post(markedOrder(), key);
     expect((await post(markedOrder(), key)).statusCode).toBe(200);
     expect((await post({ ...markedOrder(), unknown: EMAIL })).statusCode).toBe(400);
     expect((await post({ customer: { name: NAME, document: 'bad-' + DOCUMENT, email: EMAIL } })).statusCode).toBe(400);
 
-    // worker paths: every fake scenario, including ERP errors that echo personal data
     const scenarios: FakeErpOptions[] = [
       { scenarios: ['success'] },
       { scenarios: ['transient', 'success'], errorMessage: ECHOING_MESSAGE },
@@ -78,14 +75,12 @@ describe('observability and personal data', () => {
     const ids: string[] = [];
     for (const s of scenarios) ids.push(await runToEnd(s));
 
-    // reprocess with a marked reason, then GET everything
     const failed = ids[2]!;
     expect((await app.inject({ method: 'POST', url: `/orders/${failed}/reprocess`, headers: jsonHeaders(), payload: JSON.stringify({ reason: REASON }) })).statusCode).toBe(202);
     for (const id of [created.json().id as string, ...ids]) {
       expect((await app.inject({ method: 'GET', url: `/orders/${id}` })).statusCode).toBe(200);
     }
 
-    // the capture really saw request and worker logs, at several levels
     const entries = logs.entries();
     expect(entries.some((e) => e.msg === 'request completed')).toBe(true);
     expect(entries.some((e) => typeof e.orderId === 'string' && e.status === 'SENT')).toBe(true);
@@ -111,7 +106,7 @@ describe('observability and personal data', () => {
       expect(rows).toHaveLength(1);
       for (const message of [rows[0].event_message as string, rows[0].order_message as string]) {
         expect(message.length).toBeLessThanOrEqual(200);
-        expect(message).toMatch(/\[REDA/); // the 200 limit may cut the placeholder itself
+        expect(message).toMatch(/\[REDA/);
         for (const marker of [DOCUMENT, DOCUMENT_FORMATTED, EMAIL, NAME, 'Zelda']) expect(message).not.toContain(marker);
         expect(message).not.toMatch(/9876/);
       }

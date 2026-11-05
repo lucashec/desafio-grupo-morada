@@ -30,16 +30,10 @@ async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
   return [result, Math.round(performance.now() - started)];
 }
 
-/**
- * Runs one claimed attempt (plan §7). The lease is held, so the outcome can be applied.
- * Never re-sends after an ambiguous outcome without asking the ERP first.
- */
 export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Promise<void> {
   const backoff = { baseMs: deps.retryBaseDelayMs, maxMs: deps.retryMaxDelayMs };
-  // REQ-OBS-01: scalar bindings only (REQ-OBS-05); never the payload.
   const log = deps.logger.child({ correlationId: order.correlationId, orderId: order.id, attempt: order.attempt });
 
-  // REQ-OBS-04: every ERP message is scrubbed of this order's personal data, then bounded.
   const customer = order.payload.customer;
   const safe = (message: string | null | undefined) =>
     message === null || message === undefined ? message : safeErpMessage(message, customer);
@@ -63,7 +57,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
     log.info({ status: f.to, outcome: f.event.outcome, code: f.lastError?.code }, 'attempt finished');
   }
 
-  /** Intermediate ERP call: recorded immediately so a crash cannot erase it. */
   async function record(event: AttemptEvent): Promise<void> {
     await recordErpCall(deps.pool, {
       orderId: order.id,
@@ -76,7 +69,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
 
   log.info({ status: 'PROCESSING', prevStatus: order.prevStatus }, 'attempt started');
 
-  /** REQ-ERP-05, REQ-RETRY-04: inconclusive outcome -> reconcile later, or hand over to a human. */
   async function ambiguousFail(lastError: { code: string; message: string }, event: AttemptEvent): Promise<void> {
     if (order.attempt < deps.maxAttempts) {
       await finalize({
@@ -103,7 +95,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
     return [result, event];
   }
 
-  // REQ-ERP-06, REQ-CONC-05: the previous attempt may have reached the ERP; ask before sending.
   if (order.prevStatus === 'UNCERTAIN' || order.prevStatus === 'PROCESSING') {
     const [found, event] = await lookup();
     switch (found.kind) {
@@ -123,7 +114,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
     }
   }
 
-  // REQ-IDEM-04: the order id is the stable ERP reference on every attempt.
   const [result, durationMs] = await timed(() => deps.erp.createOrder(order.id, order.payload));
 
   switch (result.kind) {
@@ -175,7 +165,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
         );
         return;
       }
-      // REQ-ERP-11: 409 says the reference exists; confirm in the same attempt.
       await record({ type: 'ERP_CREATE', outcome: 'AMBIGUOUS_CONFLICT', durationMs });
       const [found, event] = await lookup();
       switch (found.kind) {
@@ -183,7 +172,6 @@ export async function processClaimed(deps: ProcessDeps, order: ClaimedOrder): Pr
           await finalize({ to: 'SENT', erpOrderId: found.erpOrderId, event });
           return;
         case 'NOT_FOUND':
-          // The ERP contradicts itself; re-sending cannot resolve it.
           await finalize({
             to: 'NEEDS_REVIEW',
             lastError: { code: 'ERP_CONFLICT_NOT_FOUND', message: 'ERP reported a conflict but the lookup found no order' },

@@ -6,7 +6,6 @@ import { testDatabaseUrl, useTestDatabase } from '../helpers/db.js';
 const { pool } = useTestDatabase();
 const app = buildTestApp(pool);
 
-// Test-only routes, registered before the app is ready.
 app.get('/__boom', async () => {
   throw new Error('internal detail: relation "orders" password=hunter2');
 });

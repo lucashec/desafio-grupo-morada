@@ -25,10 +25,6 @@ const envSchema = z.object({
 
 export type Config = ReturnType<typeof loadConfig>;
 
-/**
- * Reads configuration from environment variables only. Error messages name the
- * offending variable but never echo its value (it may be a secret).
- */
 export function loadConfig(env: Record<string, string | undefined> = process.env) {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
@@ -37,7 +33,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   const e = parsed.data;
 
-  // REQ-CONC-06: worst-case attempt = lookup + create + lookup after 409.
   const minLease = e.ERP_TIMEOUT_MS + 2 * e.ERP_LOOKUP_TIMEOUT_MS + LEASE_SAFETY_MARGIN_MS;
   if (e.LEASE_MS <= minLease) {
     throw new ConfigError(

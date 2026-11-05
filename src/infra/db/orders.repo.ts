@@ -2,8 +2,6 @@ import type pg from 'pg';
 import { assertTransition } from '../../domain/state-machine.js';
 import type { OrderPayload, OrderStatus } from '../../domain/order.js';
 
-// All SQL of the system lives here, always parameterized (REQ-SEC-03).
-
 export type CreatedOrder = { id: string; status: OrderStatus; createdAt: Date };
 
 export type InsertResult =
@@ -11,12 +9,6 @@ export type InsertResult =
   | { kind: 'REPLAYED'; order: CreatedOrder }
   | { kind: 'KEY_REUSED' };
 
-/**
- * REQ-IDEM-01..03, REQ-CONC-01/02. Atomic insert-or-nothing guarded by the UNIQUE
- * constraint; the CREATED event is part of the same statement. On conflict the
- * INSERT waits for the competing transaction, so the follow-up SELECT (new
- * statement, new snapshot) always sees the committed winner. No SELECT-then-INSERT.
- */
 export async function insertOrderIdempotent(
   pool: pg.Pool,
   input: { idempotencyKey: string; requestHash: string; payload: OrderPayload; correlationId: string },
@@ -43,7 +35,6 @@ export async function insertOrderIdempotent(
   );
   const found = existing.rows[0];
   if (!found) {
-    // Only possible if the row were deleted between the two statements; orders are never deleted.
     throw new Error('idempotency conflict without an existing row');
   }
   if (found.request_hash !== input.requestHash) return { kind: 'KEY_REUSED' };
@@ -72,7 +63,6 @@ export type OrderView = {
   }>;
 };
 
-/** REQ-API-04: status + history. Never selects the payload. */
 export async function findOrderView(pool: pg.Pool, id: string): Promise<OrderView | null> {
   const { rows } = await pool.query(
     `SELECT id, status, attempts, erp_order_id, last_error_code, last_error_message,
@@ -110,7 +100,6 @@ export async function findOrderView(pool: pg.Pool, id: string): Promise<OrderVie
   };
 }
 
-// Storage bounds mirror the schema: varchar(64) / varchar(200) (REQ-OBS-04).
 const clamp = (s: string | null | undefined, max: number): string | null =>
   s === null || s === undefined ? null : s.slice(0, max);
 
@@ -127,11 +116,6 @@ export type ClaimResult =
   | { kind: 'CLAIMED'; order: ClaimedOrder }
   | { kind: 'ABANDONED'; orderId: string; attempt: number; correlationId: string };
 
-/**
- * REQ-RETRY-05, REQ-CONC-03: atomically claims the oldest due order in one
- * short transaction. No external I/O happens inside (the ERP is only called
- * after COMMIT). Concurrency is bounded by `FOR UPDATE SKIP LOCKED`.
- */
 export async function claimNextOrder(
   pool: pg.Pool,
   opts: { leaseMs: number; maxAttempts: number },
@@ -167,14 +151,10 @@ export async function claimNextOrder(
     );
     const row = claimed.rows[0];
     if (!row) {
-      // Nothing due right now.
       await client.query('COMMIT');
       return null;
     }
 
-    // Case B: an expired lease on the last allowed attempt. Reclaiming would
-    // mean re-sending an order the ERP may already have; route to review
-    // instead of risking duplicates (REQ-RETRY-05). No ATTEMPT_STARTED.
     if (row.prev_status === 'PROCESSING' && row.attempts > opts.maxAttempts) {
       assertTransition('PROCESSING', 'NEEDS_REVIEW');
       const abandoned = await client.query(
@@ -197,8 +177,6 @@ export async function claimNextOrder(
       return { kind: 'ABANDONED', orderId: row.id, attempt: row.attempts, correlationId: row.correlation_id };
     }
 
-    // Case A: a normal claim. The start of the attempt is recorded before any
-    // ERP call (REQ-ERP-01).
     assertTransition(row.prev_status, 'PROCESSING');
     await client.query(
       `INSERT INTO order_events
@@ -239,18 +217,13 @@ export type Finalize = {
   leaseToken: string;
   attempt: number;
   correlationId: string;
-  to: OrderStatus; // SENT | RETRY_SCHEDULED | FAILED | UNCERTAIN | NEEDS_REVIEW
+  to: OrderStatus;
   erpOrderId?: string | null;
   lastError?: { code: string; message: string } | null;
-  nextAttemptDelayMs?: number | null; // null/undefined -> next_attempt_at NULL
+  nextAttemptDelayMs?: number | null;
   event: AttemptEvent;
 };
 
-/**
- * REQ-STATE-03: applies the outcome of an attempt only while the caller still
- * owns the lease. A stale worker (lost lease) records LEASE_LOST but changes
- * nothing, so a late ERP result can never overwrite a newer one.
- */
 export async function finalizeAttempt(pool: pg.Pool, f: Finalize): Promise<{ applied: boolean }> {
   assertTransition('PROCESSING', f.to);
   const client = await pool.connect();
@@ -295,7 +268,6 @@ export async function finalizeAttempt(pool: pg.Pool, f: Finalize): Promise<{ app
       await client.query('COMMIT');
       return { applied: true };
     }
-    // Lease lost: the transition was not applied, so to_status stays NULL (REQ-STATE-03).
     await client.query(
       `INSERT INTO order_events
          (order_id, type, from_status, to_status, attempt, outcome, error_code, error_message, duration_ms, lease_token, correlation_id)
@@ -326,12 +298,6 @@ export type ReprocessResult =
   | { kind: 'INVALID_STATE'; currentStatus: OrderStatus }
   | { kind: 'NOT_FOUND' };
 
-/**
- * REQ-RETRY-07/08: the decision is a single guarded UPDATE with its event in the
- * same statement. A concurrent second call waits for the row lock, re-checks the
- * WHERE against the committed row and affects 0 rows. The follow-up SELECT only
- * picks the error (404 vs 409); it never decides whether the transition happens.
- */
 export async function requestReprocess(
   pool: pg.Pool,
   input: { id: string; reason: string | null },
@@ -360,7 +326,6 @@ export async function requestReprocess(
   return found ? { kind: 'INVALID_STATE', currentStatus: found.status } : { kind: 'NOT_FOUND' };
 }
 
-/** Informational event for intermediate ERP calls that change no status. */
 export async function recordErpCall(
   pool: pg.Pool,
   input: { orderId: string; leaseToken: string; attempt: number; correlationId: string; event: AttemptEvent },

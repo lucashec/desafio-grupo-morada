@@ -5,10 +5,8 @@ import type pg from 'pg';
 import { createPool } from './pool.js';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations');
-// Arbitrary constant: serializes concurrent migrate runs (e.g. two instances booting).
 const MIGRATION_LOCK_ID = 727_001;
 
-/** Applies pending migrations/*.sql in name order, each in its own transaction. Returns applied names. */
 export async function migrate(pool: pg.Pool): Promise<string[]> {
   const client = await pool.connect();
   try {

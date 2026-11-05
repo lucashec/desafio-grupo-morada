@@ -51,7 +51,6 @@ describe('logger redact', () => {
   // REQ-OBS-05
   it('keeps redact active through the Fastify logger instance', async () => {
     const { stream, lines } = memoryStream();
-    // The pool is never touched by this test.
     const app = buildApp({ pool: {} as never, logger: createLogger({ level: 'info', stream }) });
     app.log.info({ customer: { document: DOCUMENT } }, 'via fastify');
     await app.close();

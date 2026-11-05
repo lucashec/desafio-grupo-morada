@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { ORDER_STATUSES, type OrderStatus } from '../../src/domain/order.js';
 import { assertTransition, canTransition, InvalidTransitionError } from '../../src/domain/state-machine.js';
 
-// Independent copy of the REQ-STATE-01 table: the test must not derive expectations
-// from the code under test.
 const ALLOWED: ReadonlyArray<[OrderStatus, OrderStatus]> = [
   ['PENDING', 'PROCESSING'],
   ['RETRY_SCHEDULED', 'PROCESSING'],

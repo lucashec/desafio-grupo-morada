@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { classifyCreate, classifyLookup, type RawErpResponse } from '../../src/infra/erp/classify.js';
 
 const cases: ReadonlyArray<[string, RawErpResponse, string, string]> = [
-  // label, raw response, expected create classification, expected lookup classification
   ['200', { status: 200 }, 'SUCCESS', 'FOUND'],
   ['201', { status: 201 }, 'SUCCESS', 'FOUND'],
   ['101', { status: 101 }, 'TRANSIENT_ERROR', 'UNKNOWN'],

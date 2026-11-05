@@ -9,7 +9,6 @@ import { buildWorker, createOrder, events, expireLease } from '../helpers/worker
 const { pool } = useTestDatabase();
 const CLAIM = { leaseMs: 30000, maxAttempts: 5 };
 
-/** A worker claimed the order and died before (or right after) calling the ERP. */
 async function crashAfterClaim() {
   const claim = await claimNextOrder(pool, CLAIM);
   if (claim?.kind !== 'CLAIMED') throw new Error('expected a claim');
@@ -47,7 +46,7 @@ describe('lease recovery and fencing', () => {
     const id = await createOrder(pool);
     const order = await crashAfterClaim();
     const erp = new FakeErpClient({ scenarios: ['processed_then_timeout'] });
-    await erp.createOrder(order.id, order.payload as OrderPayload); // the dead worker's call
+    await erp.createOrder(order.id, order.payload as OrderPayload);
     await expireLease(pool, id);
     const { worker } = buildWorker(pool, { erp });
 
@@ -70,7 +69,6 @@ describe('lease recovery and fencing', () => {
     let bProcessed: number | undefined;
     const erp = new FakeErpClient({
       hooks: {
-        // While A waits for the ERP, its lease expires and B takes the order over.
         beforeCreateResponds: async () => {
           if (bProcessed !== undefined) return;
           bProcessed = -1;
@@ -95,7 +93,6 @@ describe('lease recovery and fencing', () => {
     expect(lost).toEqual([
       { type: 'ERP_CREATE', from_status: 'PROCESSING', to_status: null, attempt: 1, outcome: 'SUCCESS', error_code: 'LEASE_LOST' },
     ]);
-    // B's lookup applied SENT; A's late SUCCESS did not produce a second transition.
     expect(evs.filter((e) => e.to_status === 'SENT').map((e) => [e.type, e.attempt])).toEqual([['ERP_LOOKUP', 2]]);
     expect(logs.entries().some((l) => l.code === 'LEASE_LOST' && l.orderId === id && l.level === 40)).toBe(true);
   });
@@ -108,7 +105,7 @@ describe('lease recovery and fencing', () => {
       hooks: {
         beforeCreateResponds: async () => {
           await expireLease(pool, id);
-          const claim = await claimNextOrder(pool, CLAIM); // B claims and is still working
+          const claim = await claimNextOrder(pool, CLAIM);
           if (claim?.kind === 'CLAIMED') bLease = claim.order.leaseToken;
         },
       },

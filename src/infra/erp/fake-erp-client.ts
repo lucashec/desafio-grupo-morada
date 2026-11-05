@@ -16,33 +16,25 @@ export type LookupScenario = 'auto' | 'unknown';
 export interface FakeErpOptions {
   scenarios?: CreateScenario[];
   lookupScenarios?: LookupScenario[];
-  /** true (default): the ERP deduplicates by reference. false: every recording call creates a new order. */
   honorsReference?: boolean;
   hooks?: {
     beforeCreateResponds?: (reference: string) => Promise<void>;
     beforeLookupResponds?: (reference: string) => Promise<void>;
   };
-  /** Overrides the simulated ERP error text (e.g. oversized messages for truncation tests). */
   errorCode?: string;
   errorMessage?: string;
 }
 
-/** Takes the head of the queue; the last scenario repeats forever. */
 function next<T>(queue: T[]): T {
   const head = queue.length > 1 ? queue.shift() : queue[0];
   if (head === undefined) throw new Error('FakeErpClient: empty scenario queue');
   return head;
 }
 
-/**
- * In-memory ERP double (REQ-ERP-09). No database, no timers: time-related behaviour
- * is simulated by returning the classified outcome, or held with `hang()`.
- */
 export class FakeErpClient implements ErpClient {
   readonly registry = new Map<string, string>();
   createCalls = 0;
   lookupCalls = 0;
-  /** Orders actually created by the ERP: the "no duplicates" metric. */
   createdCount = 0;
 
   private readonly scenarios: CreateScenario[];
@@ -62,7 +54,6 @@ export class FakeErpClient implements ErpClient {
     this.errorMessage = opts.errorMessage;
   }
 
-  /** The next call (create or lookup) does not resolve until the returned function is called. */
   hang(): () => void {
     let release!: () => void;
     this.pendingHang = new Promise<void>((resolve) => {
@@ -97,7 +88,6 @@ export class FakeErpClient implements ErpClient {
         raw = { errorCode: 'TIMEOUT' };
         break;
       case 'conflict_found':
-        // Simulates an order the ERP created earlier: registered once, never re-counted.
         if (!this.registry.has(reference)) this.record(reference);
         raw = { status: 409 };
         break;
@@ -156,7 +146,6 @@ export class FakeErpClient implements ErpClient {
     if (hang) await hang;
   }
 
-  /** Records an ERP-side creation, honouring (or not) dedupe by reference. Returns the id the ERP answers with. */
   private record(reference: string): string {
     const existing = this.registry.get(reference);
     if (existing !== undefined && this.honorsReference) return existing;

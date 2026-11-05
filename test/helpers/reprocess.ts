@@ -1,6 +1,5 @@
 import type pg from 'pg';
 
-/** Puts an order directly into a given state (as a previous worker run would have). */
 export async function forceStatus(pool: pg.Pool, id: string, status: string): Promise<void> {
   const processing = status === 'PROCESSING';
   await pool.query(

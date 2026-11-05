@@ -11,7 +11,6 @@ async function main(): Promise<void> {
   const pool = createPool(config.databaseUrl);
   const app = buildApp({ pool, logger });
 
-  // The project has no real ERP; the fake backs the running worker (T-07).
   const worker = config.workerEnabled
     ? createWorker({
         pool,
@@ -53,7 +52,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  // Config errors name variables, never values (REQ-SEC-04).
   process.stderr.write(`fatal: ${(err as Error).message}\n`);
   process.exit(1);
 });

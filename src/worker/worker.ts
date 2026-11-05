@@ -28,7 +28,6 @@ export function createWorker(deps: WorkerDeps): {
   start(): void;
   stop(): Promise<void>;
 } {
-  // Client-side deadlines (REQ-ERP-08): a timed-out create is ambiguous.
   const erp = withTimeouts(deps.erp, { createMs: deps.config.erpTimeoutMs, lookupMs: deps.config.erpLookupTimeoutMs });
 
   async function runOnce(): Promise<number> {
@@ -65,7 +64,6 @@ export function createWorker(deps: WorkerDeps): {
           order,
         );
       } catch (err) {
-        // Error messages (e.g. from the driver) may echo values: log name/code only (REQ-OBS-05).
         deps.logger.error(
           { correlationId: order.correlationId, orderId: order.id, attempt: order.attempt, status: 'PROCESSING', ...errorFields(err) },
           'order processing failed',
@@ -80,7 +78,6 @@ export function createWorker(deps: WorkerDeps): {
   let loop: Promise<void> | undefined;
   let wakeSleep: (() => void) | undefined;
 
-  // Interruptible sleep: stop() clears the timer instead of waiting for it to fire.
   function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {

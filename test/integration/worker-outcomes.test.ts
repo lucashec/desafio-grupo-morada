@@ -38,7 +38,7 @@ describe('worker outcomes', () => {
     const { worker } = buildWorker(pool, { erp });
 
     await worker.runOnce();
-    await worker.runOnce(); // a retried run must find nothing left to do
+    await worker.runOnce();
 
     const view = await findOrderView(pool, id);
     expect(view?.status).toBe('FAILED');
@@ -164,7 +164,7 @@ describe('worker outcomes', () => {
 
     const result = await finalizeAttempt(pool, {
       orderId: id,
-      leaseToken: randomUUID(), // not the token the claim granted
+      leaseToken: randomUUID(),
       attempt: 1,
       correlationId: 'test-corr',
       to: 'SENT',

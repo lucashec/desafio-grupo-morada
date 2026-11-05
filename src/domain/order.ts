@@ -11,11 +11,9 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-/** REQ-API-02, REQ-SEC-03: strict schema, bounded sizes, money as integer cents. */
 export const orderPayloadSchema = z.strictObject({
   customer: z.strictObject({
     name: z.string().trim().min(1).max(120),
-    // Format only (11 = CPF, 14 = CNPJ), no check digits: see requirements Q-01.
     document: z.string().regex(/^(\d{11}|\d{14})$/, 'must be 11 or 14 digits'),
     email: z.email().max(254),
   }),

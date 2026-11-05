@@ -1,9 +1,5 @@
 import type { OrderStatus } from './order.js';
 
-/**
- * REQ-STATE-01: the only allowed transitions. The database enforces the same
- * rule at write time with `UPDATE ... WHERE status = <from>` (REQ-STATE-03).
- */
 export const TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   PENDING: ['PROCESSING'],
   RETRY_SCHEDULED: ['PROCESSING'],

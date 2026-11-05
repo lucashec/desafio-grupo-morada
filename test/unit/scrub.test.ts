@@ -36,11 +36,11 @@ describe('ERP message scrubbing (defence in depth)', () => {
 
   // REQ-OBS-04
   it('a document crossing position 200 leaves no prefix of 4+ digits after truncation', () => {
-    const message = `${'x'.repeat(195)}98765432100 tail`; // document spans positions 195..205
-    const out = safeErpMessage(message.slice(0, 200), customer); // ERP client already cut at 200
+    const message = `${'x'.repeat(195)}98765432100 tail`;
+    const out = safeErpMessage(message.slice(0, 200), customer);
     expect(out.length).toBeLessThanOrEqual(200);
     expect(out).not.toMatch(/9876/);
-    const full = safeErpMessage(message, customer); // and when scrubbing the untruncated text
+    const full = safeErpMessage(message, customer);
     expect(full.length).toBeLessThanOrEqual(200);
     expect(full).not.toMatch(/9876/);
   });

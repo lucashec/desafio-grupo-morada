@@ -2,7 +2,6 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      # Local development credentials only. Never reuse outside this compose file.
       POSTGRES_USER: orders
       POSTGRES_PASSWORD: orders
       POSTGRES_DB: orders_dev

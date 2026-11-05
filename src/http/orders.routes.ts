@@ -6,7 +6,6 @@ import { requestHash } from '../domain/request-hash.js';
 import { findOrderView, insertOrderIdempotent, requestReprocess } from '../infra/db/orders.repo.js';
 import { AppError } from './errors.js';
 
-/** Validation details carry path + rule only, never the received value (REQ-API-02). */
 function validationError(error: z.ZodError): AppError {
   const details = error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
   return new AppError(400, 'VALIDATION_ERROR', 'Request body is invalid', details);
@@ -18,7 +17,6 @@ function orderNotFound(): AppError {
 
 const uuidSchema = z.uuid();
 
-// REQ-RETRY-07: optional free-text reason; stored in the event, never logged.
 const reprocessBodySchema = z.strictObject({ reason: z.string().min(1).max(200).optional() });
 
 export function registerOrderRoutes(app: FastifyInstance, pool: pg.Pool): void {

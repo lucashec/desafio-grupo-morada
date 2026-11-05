@@ -84,7 +84,6 @@ describe('idempotency', () => {
 
   // REQ-IDEM-01, REQ-OBS-03
   it('never leaves an order without its CREATED event: a failing event insert rolls back the order', async () => {
-    // Make the CREATED insert fail inside the same statement that inserts the order.
     await pool.query(
       `ALTER TABLE order_events ADD CONSTRAINT test_reject_created CHECK (type <> 'CREATED') NOT VALID`,
     );

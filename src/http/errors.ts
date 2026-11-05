@@ -19,7 +19,6 @@ function body(code: string, message: string, details?: unknown): ErrorBody {
   return { error: details === undefined ? { code, message } : { code, message, details } };
 }
 
-/** REQ-API-07: one error shape; never leak stack traces or internal messages. */
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setErrorHandler((err: FastifyError | AppError, request, reply) => {
     if (err instanceof AppError) {
@@ -37,7 +36,6 @@ export function registerErrorHandling(app: FastifyInstance): void {
     if (status !== undefined && status >= 400 && status < 500) {
       return reply.status(400).send(body('MALFORMED_REQUEST', 'Malformed request'));
     }
-    // Driver messages may echo input values: log name/code only (REQ-OBS-05).
     request.log.error(errorFields(err), 'unhandled error');
     return reply.status(500).send(body('INTERNAL_ERROR', 'Internal server error'));
   });

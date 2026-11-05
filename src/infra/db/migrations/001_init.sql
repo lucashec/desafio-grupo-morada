@@ -14,24 +14,19 @@ CREATE TABLE orders (
   correlation_id     varchar(64) NOT NULL,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
-  -- REQ-IDEM-01: uniqueness is enforced by the database, never by the application.
   CONSTRAINT orders_idempotency_key_uq UNIQUE (idempotency_key),
   CONSTRAINT orders_status_ck CHECK (status IN (
     'PENDING', 'PROCESSING', 'SENT', 'RETRY_SCHEDULED', 'FAILED', 'UNCERTAIN', 'NEEDS_REVIEW')),
-  -- Second line of defense: a PROCESSING order always carries a lease, and only then.
   CONSTRAINT orders_processing_has_lease_ck CHECK (
     (status = 'PROCESSING') = (lease_token IS NOT NULL AND locked_until IS NOT NULL)),
   CONSTRAINT orders_sent_has_erp_id_ck CHECK (status <> 'SENT' OR erp_order_id IS NOT NULL)
 );
 
--- Worker claim of due orders. Partial: terminal orders (most rows over time) are not indexed.
 CREATE INDEX orders_due_idx ON orders (next_attempt_at)
   WHERE status IN ('PENDING', 'RETRY_SCHEDULED', 'UNCERTAIN');
 
--- Recovery of expired leases (crashed worker). Tiny: only in-flight orders.
 CREATE INDEX orders_lease_idx ON orders (locked_until) WHERE status = 'PROCESSING';
 
--- Append-only audit trail: one row per fact (creation, claim, ERP call, reprocess).
 CREATE TABLE order_events (
   id             bigserial   PRIMARY KEY,
   order_id       uuid        NOT NULL REFERENCES orders (id),
@@ -39,7 +34,7 @@ CREATE TABLE order_events (
                    'CREATED', 'ATTEMPT_STARTED', 'ERP_CREATE', 'ERP_LOOKUP',
                    'ATTEMPT_ABANDONED', 'REPROCESS_REQUESTED')),
   from_status    text,
-  to_status      text,        -- NULL = transition not applied (lease lost)
+  to_status      text,
   attempt        integer,
   outcome        text,
   error_code     varchar(64),

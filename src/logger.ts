@@ -1,9 +1,5 @@
 import pino, { type DestinationStream, type Logger } from 'pino';
 
-/**
- * Safety net only: the primary rule is to never hand payloads or personal data to
- * the logger. Anything that slips through under these keys is censored.
- */
 export const REDACT_PATHS = [
   'payload',
   '*.payload',
@@ -11,9 +7,6 @@ export const REDACT_PATHS = [
   '*.body',
   'customer',
   '*.customer',
-  // pino wildcards match exactly ONE level: 'document', '*.document' and
-  // '*.*.document' are three different paths. Depth 0..2 covers every shape the
-  // code logs; deeper nesting is not redacted (see STATE.md, adversarial review).
   'document',
   '*.document',
   '*.*.document',
@@ -40,10 +33,6 @@ export function createLogger(opts: { level: string; stream?: DestinationStream }
   );
 }
 
-/**
- * REQ-OBS-05: errors are logged as scalar name + code only. Messages (driver,
- * library) may echo input values, and nested objects escape the depth-2 redact.
- */
 export function errorFields(err: unknown): { errName: string; errCode?: string } {
   if (!(err instanceof Error)) return { errName: typeof err };
   const code = (err as { code?: unknown }).code;

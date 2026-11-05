@@ -1,7 +1,6 @@
 import type { OrderPayload } from '../../domain/order.js';
 import { erpError, type CreateOrderResult, type ErpClient, type LookupResult } from './erp-client.js';
 
-/** Races `fn` against a timer; the timer is always cleared, whatever wins. */
 export async function callWithTimeout<T>(fn: () => Promise<T>, ms: number, onTimeout: () => T): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<T>((resolve) => {
@@ -14,7 +13,6 @@ export async function callWithTimeout<T>(fn: () => Promise<T>, ms: number, onTim
   }
 }
 
-/** REQ-ERP-08: wraps any ErpClient with client-side deadlines. */
 export function withTimeouts(client: ErpClient, opts: { createMs: number; lookupMs: number }): ErpClient {
   return {
     createOrder: (reference: string, payload: OrderPayload) =>
