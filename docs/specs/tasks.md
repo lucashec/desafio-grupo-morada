@@ -127,7 +127,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** em nenhum cenário o fake registra mais de 1 pedido por referência.
 - **Commit:** `feat(reconciliation): T-10 ambiguous outcomes and lookup before resend [REQ-ERP-05, REQ-ERP-06, REQ-ERP-11, REQ-RETRY-04]`
 
-### [ ] T-11: Recuperação de lease, fencing e reclaim esgotado
+### [x] T-11: Recuperação de lease, fencing e reclaim esgotado
 - **Objetivo:** lease vencido tratado como ambíguo; gravação com lease perdido descartada com evento `LEASE_LOST`; caso B do claim (`attempts > MAX` → `NEEDS_REVIEW` sem tentativa).
 - **REQ:** REQ-CONC-04, REQ-CONC-05, REQ-RETRY-05 (caso `attempts=2`), REQ-STATE-03
 - **Arquivos:** `src/infra/db/orders.repo.ts`, `src/worker/worker.ts`, `src/worker/process-order.ts`, `test/integration/lease.test.ts`

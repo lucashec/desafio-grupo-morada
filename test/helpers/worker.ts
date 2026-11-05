@@ -4,7 +4,7 @@ import { requestHash } from '../../src/domain/request-hash.js';
 import { insertOrderIdempotent } from '../../src/infra/db/orders.repo.js';
 import type { ErpClient } from '../../src/infra/erp/erp-client.js';
 import { FakeErpClient } from '../../src/infra/erp/fake-erp-client.js';
-import { createLogger } from '../../src/logger.js';
+import { createLogger, type Logger } from '../../src/logger.js';
 import { createWorker } from '../../src/worker/worker.js';
 import { newKey, validOrder } from './fixtures.js';
 
@@ -30,13 +30,13 @@ export async function createOrder(pool: pg.Pool, overrides: Record<string, unkno
 
 export function buildWorker<E extends ErpClient = FakeErpClient>(
   pool: pg.Pool,
-  opts: { erp?: E; maxAttempts?: number; random?: () => number; batchSize?: number } = {},
+  opts: { erp?: E; maxAttempts?: number; random?: () => number; batchSize?: number; logger?: Logger } = {},
 ) {
   const erp = opts.erp ?? (new FakeErpClient() as unknown as E);
   const worker = createWorker({
     pool,
     erp,
-    logger: createLogger({ level: 'silent' }),
+    logger: opts.logger ?? createLogger({ level: 'silent' }),
     config: {
       maxAttempts: opts.maxAttempts ?? 5,
       retryBaseDelayMs: 1000,
