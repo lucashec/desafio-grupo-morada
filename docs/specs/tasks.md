@@ -46,7 +46,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 > ⏸ Pausa para OK.
 
-### [ ] T-04: POST /orders (validação + persistência) e GET /orders/:id
+### [x] T-04: POST /orders (validação + persistência) e GET /orders/:id
 - **Objetivo:** schema Zod estrito, validação da `Idempotency-Key`, `INSERT` + evento `CREATED`, 202 + `Location`; GET com histórico sem payload; 404.
 - **REQ:** REQ-API-01, REQ-API-02, REQ-API-03, REQ-API-04, REQ-API-05, REQ-SEC-03
 - **Arquivos:** `src/domain/order.ts`, `src/http/orders.routes.ts`, `src/infra/db/orders.repo.ts`, `test/helpers/fixtures.ts`, `test/integration/orders-api.test.ts`

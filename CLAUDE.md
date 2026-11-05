@@ -75,7 +75,7 @@ npm run check:trace         # valida requisito -> teste e a matriz em docs/specs
   ```
 - **Formato fixo do marcador** (lido por `npm run check:trace`; fora dele, o requisito não conta como coberto):
   - uma linha só com `// REQ-<GRUPO>-<NN>`, ou vários IDs separados por `, `. Regex: `^\s*// REQ-[A-Z]+-\d{2}(, REQ-[A-Z]+-\d{2})*$`;
-  - a linha seguinte (não vazia) é o `it(` ou `test(` com o nome do teste entre aspas simples;
+  - a linha seguinte (não vazia) começa com `it(`, `test(`, `it.each(` ou `test.each(`. O nome do teste, entre aspas simples, fica nessa linha (ou, em `.each`, na linha `])(` que fecha a tabela);
   - intervalos (`REQ-API-01..05`) são proibidos em teste e permitidos só em mensagens de commit.
 - No `requirements.md`, o requisito é identificado pelo cabeçalho `### REQ-<GRUPO>-<NN> [IMPLEMENTAR]` ou `[PROPOSTA PRODUÇÃO]`. Não altere esse formato.
 - `npm run check:trace` falha se algum requisito `[IMPLEMENTAR]` não tiver marcador em `test/`, ou se `docs/specs/traceability.md` estiver desatualizado. `npm run check:trace -- --write` regenera a matriz. Ele verifica se **existe** teste para cada requisito, não a **qualidade** do teste.

@@ -10,7 +10,7 @@ Estado vivo do trabalho e registro de desvios de processo. Atualizado a cada tar
 | 1. Requisitos | aprovada (2026-11-05) |
 | 2. Plano + ADRs | aprovada (2026-11-05) |
 | 3. Tarefas | aprovada (2026-11-05) |
-| 4. Implementação | T-01..T-03 concluídas; em andamento |
+| 4. Implementação | T-01..T-04 concluídas; em andamento |
 | 5. Fechamento | pendente |
 
 Pré-requisito local: Docker Desktop em execução (`docker compose up -d --wait db`).
@@ -20,6 +20,7 @@ Pré-requisito local: Docker Desktop em execução (`docker compose up -d --wait
 | Data | Item | Descrição | Ação |
 |---|---|---|---|
 | 2026-11-05 | Marcação T-01 | O `[x]` da T-01 no `tasks.md` entrou no commit da T-02 (`8b9ce92`), não no da T-01 (`44a7188`): o amend foi recusado pela ferramenta por reescrever histórico sem confirmação. | Regra adotada: marcar `[x]` antes do commit da própria tarefa. Histórico não reescrito. |
+| 2026-11-05 | Formato do marcador | A T-04 usa `it.each(...)` para tabelas de validação; o formato fixo do `CLAUDE.md` previa só `it(`/`test(`. | Regra ampliada para aceitar `it.each(`/`test.each(` antes de qualquer script depender dela (o `check:trace` é da T-14). |
 | 2026-11-05 | Redact top-level | O teste mínimo de redact revelou que `document`/`email` no nível raiz do objeto de log não eram mascarados (wildcards do pino cobrem só um nível). | Paths de nível raiz adicionados em `src/logger.ts`; coberto por `test/unit/logger.test.ts`. |
 
 ## Decisões de implementação verificadas
