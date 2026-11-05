@@ -178,6 +178,9 @@ O sistema deve oferecer um `FakeErpClient` com cenários injetáveis por chamada
 - Given cenário `processed_then_timeout`, When `createOrder` é chamado, Then o pedido aparece no registro do fake e o retorno é `AMBIGUOUS{TIMEOUT}`.
 - Given cenário `conflict_found`, When `createOrder` é chamado, Then o retorno é `AMBIGUOUS{CONFLICT}` e a referência passa a constar no registro, simulando um pedido que o ERP criou antes (contado uma única vez); a consulta seguinte retorna `FOUND`.
 - Given cenário `conflict_not_found`, When `createOrder` é chamado, Then o retorno é `AMBIGUOUS{CONFLICT}`, o registro não muda e a consulta seguinte retorna `NOT_FOUND`.
+- O fake aceita a opção `honorsReference` (padrão `true`). Com `true`, o ERP deduplica pela referência: uma criação que grava (`success`, `processed_then_timeout`) para uma referência já registrada não cria outro pedido e devolve o `erpOrderId` existente. Com `false`, o ERP não deduplica: cada criação que grava conta como um pedido novo. Isso permite provar que o sistema evita duplicidade sem depender do ERP. `createdCount` conta pedidos efetivamente criados (com `true`, é igual a `registry.size`).
+- Given `honorsReference = true` e dois `createOrder` com `success` para a mesma referência, Then `createdCount = 1` e os dois retornos têm o mesmo `erpOrderId`.
+- Given `honorsReference = false` e o mesmo par de chamadas, Then `createdCount = 2`.
 
 ### REQ-ERP-10 [PROPOSTA PRODUÇÃO]
 O sistema deveria ter um `HttpErpClient` real (com `undici`/`fetch`, `AbortSignal.timeout`, TLS/mTLS e credenciais via secret manager), mantendo o mesmo contrato tipado e a mesma função de classificação.

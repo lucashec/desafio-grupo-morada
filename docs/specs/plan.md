@@ -309,7 +309,8 @@ export interface ErpClient {
 - `scenarios: CreateScenario[]` consumidos em fila, um por chamada `createOrder`; o último se repete. Cenários: `success`, `transient` (503), `permanent` (422), `timeout` (nada gravado), `processed_then_timeout` (grava e retorna `AMBIGUOUS{TIMEOUT}`), `conflict_found` (registra a referência se ausente e retorna 409), `conflict_not_found` (409 sem registrar).
 - `lookupScenarios: LookupScenario[]`, no mesmo esquema de fila: `auto` (padrão, responde pelo registro) ou `unknown` (503 na consulta).
 - `registry: Map<reference, erpOrderId>`.
-- Contadores: `createCalls`, `lookupCalls`, `createdCount` (= `registry.size`, a métrica de "sem duplicidade").
+- `honorsReference` (padrão `true`): com `true`, uma criação que grava para uma referência já registrada não cria outro pedido e devolve o `erpOrderId` existente; com `false`, cada criação que grava conta como pedido novo (ERP sem dedupe). O registro guarda o primeiro `erpOrderId` da referência.
+- Contadores: `createCalls`, `lookupCalls`, `createdCount` (pedidos efetivamente criados, a métrica de "sem duplicidade"; com `honorsReference = true`, é igual a `registry.size`).
 - `hooks.beforeCreateResponds?: (reference) => Promise<void>`: permite ao teste inspecionar o banco durante a chamada (REQ-ERP-01) ou intercalar outro worker (REQ-CONC-04), de forma determinística.
 - `hang()`: a próxima chamada só resolve quando o teste liberar (REQ-ERP-08, com `vi.useFakeTimers`).
 

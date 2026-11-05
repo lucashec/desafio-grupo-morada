@@ -76,14 +76,14 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 
 > ⏸ Pausa para OK.
 
-### [ ] T-07: Contrato ErpClient, classificação, timeout e FakeErpClient
-- **Objetivo:** tipos `CreateOrderResult`/`LookupResult` (`AMBIGUOUS`, `UNKNOWN`), `classifyCreate`/`classifyLookup`, `callWithTimeout`, fake com filas de cenários, registro, contadores, hook e `hang()`.
+### [x] T-07: Contrato ErpClient, classificação, timeout e FakeErpClient
+- **Objetivo:** tipos `CreateOrderResult`/`LookupResult` (`AMBIGUOUS`, `UNKNOWN`), `classifyCreate`/`classifyLookup`, `callWithTimeout`, fake com filas de cenários, registro, `honorsReference`, contadores, hook e `hang()`. O `HttpErpClient` fica como proposta (REQ-ERP-10).
 - **REQ:** REQ-ERP-07, REQ-ERP-08, REQ-ERP-09
 - **Arquivos:** `src/infra/erp/erp-client.ts`, `src/infra/erp/classify.ts`, `src/infra/erp/call-with-timeout.ts`, `src/infra/erp/fake-erp-client.ts`, `test/unit/classify.test.ts`, `test/unit/call-with-timeout.test.ts`, `test/unit/fake-erp.test.ts`
 - **Teste:**
   - `unit/classify.test.ts`: tabela com 200, 201, 400, 404, 408, 409, 422, 429, 500, 503, ECONNREFUSED, ECONNRESET e TIMEOUT, para criação e para consulta.
   - `unit/call-with-timeout.test.ts`: com `vi.useFakeTimers` e fake pendurado, a criação resulta em `AMBIGUOUS{TIMEOUT}` e a consulta em `UNKNOWN`; o timer é limpo quando a chamada resolve antes.
-  - `unit/fake-erp.test.ts`: cada cenário (`processed_then_timeout` grava e devolve ambíguo; `conflict_found` registra uma vez e a consulta acha; `conflict_not_found` não registra e a consulta não acha; `unknown` na consulta); contadores; o último cenário se repete.
+  - `unit/fake-erp.test.ts`: cada cenário (`processed_then_timeout` grava e devolve ambíguo; `conflict_found` registra uma vez e a consulta acha; `conflict_not_found` não registra e a consulta não acha; `unknown` na consulta); contadores; o último cenário se repete; `honorsReference` `true` (2 criações na mesma referência → `createdCount=1`, mesmo `erpOrderId`) e `false` (→ `createdCount=2`).
 - **Pronto quando:** `switch` exaustivo compila com `never`; o fake não depende do banco.
 - **Commit:** `feat(erp): T-07 erp client contract, classifier and fake [REQ-ERP-07..09]`
 
