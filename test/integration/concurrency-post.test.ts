@@ -20,9 +20,11 @@ function post(payload: unknown, key: string) {
 async function counts() {
   const { rows } = await pool.query(
     `SELECT (SELECT count(*)::int FROM orders) AS orders,
-            (SELECT count(*)::int FROM order_events WHERE type = 'CREATED') AS created`,
+            (SELECT count(*)::int FROM order_events WHERE type = 'CREATED') AS created,
+            (SELECT count(*)::int FROM orders o WHERE NOT EXISTS (
+               SELECT 1 FROM order_events e WHERE e.order_id = o.id AND e.type = 'CREATED')) AS orphans`,
   );
-  return rows[0] as { orders: number; created: number };
+  return rows[0] as { orders: number; created: number; orphans: number };
 }
 
 describe('concurrent POST /orders', () => {
@@ -41,7 +43,7 @@ describe('concurrent POST /orders', () => {
 
     const ids = new Set(responses.map((r) => r.json().id));
     expect(ids.size).toBe(1);
-    expect(await counts()).toEqual({ orders: 1, created: 1 });
+    expect(await counts()).toEqual({ orders: 1, created: 1, orphans: 0 });
   });
 
   // REQ-CONC-02, REQ-IDEM-03
@@ -53,7 +55,7 @@ describe('concurrent POST /orders', () => {
     const sent = Array.from({ length: N }, (_, i) => (i % 2 === 0 ? p1 : p2));
     const responses = await Promise.all(sent.map((p) => post(p, key)));
 
-    expect(await counts()).toEqual({ orders: 1, created: 1 });
+    expect(await counts()).toEqual({ orders: 1, created: 1, orphans: 0 });
     const { rows } = await pool.query('SELECT payload FROM orders');
     const winner = rows[0].payload.items[0].sku === 'SKU-001' ? p1 : p2;
 

@@ -32,6 +32,23 @@ describe('logger redact', () => {
   });
 
   // REQ-OBS-05
+  it('masks document and email at depth 0, 1 and 2', () => {
+    const { stream, lines } = memoryStream();
+    const logger = createLogger({ level: 'info', stream });
+    const EMAIL = 'marker@example.test';
+    logger.info({ document: DOCUMENT, email: EMAIL }, 'depth-0');
+    logger.info({ customer: { document: DOCUMENT, email: EMAIL } }, 'depth-1');
+    logger.info({ order: { customer: { document: DOCUMENT, email: EMAIL } } }, 'depth-2');
+    logger.info({ data: { contact: { document: DOCUMENT, email: EMAIL } } }, 'depth-2-other-keys');
+    expect(lines).toHaveLength(4);
+    for (const line of lines) {
+      expect(line).not.toContain(DOCUMENT);
+      expect(line).not.toContain(EMAIL);
+    }
+    expect(JSON.parse(lines[3]!).data.contact).toEqual({ document: '[REDACTED]', email: '[REDACTED]' });
+  });
+
+  // REQ-OBS-05
   it('keeps redact active through the Fastify logger instance', async () => {
     const { stream, lines } = memoryStream();
     // The pool is never touched by this test.

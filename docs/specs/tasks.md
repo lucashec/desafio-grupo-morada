@@ -157,7 +157,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **REQ:** REQ-OBS-01, REQ-OBS-02, REQ-OBS-03, REQ-OBS-04, REQ-OBS-05
 - **Arquivos:** `src/logger.ts`, `src/app.ts`, `src/worker/*.ts`, `src/infra/erp/fake-erp-client.ts` (mensagem longa), `src/infra/db/orders.repo.ts` (truncamento), `test/helpers/log-capture.ts`, `test/integration/observability.test.ts`
 - **Teste:** `integration/observability.test.ts`:
-  - **(Obr-8)** payload com marcadores únicos passa por criação, replay, 400, todos os cenários do fake, reprocess com `reason` marcado e GET; nenhuma linha de log contém os marcadores.
+  - **(Obr-8)** `POST /orders` real (via `app.inject`, com app e worker usando o logger da captura) e payload com `document`/`email`/`name` reconhecíveis e únicos passa por criação, replay, 400, todos os cenários do fake, reprocess com `reason` marcado e GET; a **saída inteira** do stream de log (todas as linhas, todos os níveis) é varrida e não contém nenhum marcador.
   - `logger.info({ payload })` → `[REDACTED]`.
   - Todo log do worker sobre o pedido tem os 4 campos.
   - `X-Correlation-Id: abc-123` aparece nos eventos do worker.
@@ -174,12 +174,13 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
   - Node puro (`fs`, `path`), **sem dependência nova** e com cerca de 40 linhas.
   - Lê os cabeçalhos `### REQ-..-NN [IMPLEMENTAR|PROPOSTA PRODUÇÃO]` do `requirements.md` e os marcadores `// REQ-...` de `test/**/*.test.ts`, no formato fixo do `CLAUDE.md`, com o nome do `it(`/`test(` seguinte.
   - Monta a matriz REQ-ID → teste → arquivo (proposta: "proposta, sem teste"; sem cobertura: "**SEM TESTE**").
-  - `--write` grava `traceability.md`. Sem flag, compara com o arquivo e falha (exit 1) se ele estiver desatualizado, se houver requisito `[IMPLEMENTAR]` sem teste ou se houver marcador citando um ID inexistente.
+  - `--write` grava `traceability.md`. Sem flag, compara com o arquivo e falha (exit 1) se ele estiver desatualizado, se houver requisito `[IMPLEMENTAR]` sem teste, se houver marcador citando um ID inexistente ou se houver **teste sem marcador** (`it(`, `test(`, `it.each(` ou `test.each(` cuja linha anterior não é `// REQ-…`).
   - A matriz é **gerada** pelo script: uma só fonte de verdade, sem edição manual. Notas manuais (ex.: revisão adversarial) ficam no README.
   - **Limite de esforço:** se passar de 1 h, descartar o script e escrever a matriz à mão, registrando a decisão aqui.
 - **Teste:**
   - `npm run check:trace` roda limpo;
   - prova negativa manual registrada no commit: remover temporariamente um marcador faz o script falhar com o REQ-ID citado;
+  - prova negativa específica de `it.each`: remover o marcador de um `it.each` (ex.: `unit/state-machine.test.ts`) faz o script falhar citando arquivo e linha do teste sem marcador;
   - `npm run test:stress` passa (5× seguidas);
   - suíte completa + typecheck + lint verdes.
 - **Pronto quando:** o README tem comandos copiáveis, arquitetura, estratégia, diagrama do timeout, as seções "Implementado" e "Proposta para produção" separadas, "Garantias e limitações" a revisão adversarial com ≥ 5 riscos (coberto por teste? o que foi feito?) e uma nota explícita: "`check:trace` verifica que existe ao menos um teste por requisito; não avalia a qualidade nem a suficiência desses testes".

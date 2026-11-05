@@ -11,11 +11,15 @@ export const REDACT_PATHS = [
   '*.body',
   'customer',
   '*.customer',
-  // pino wildcards match exactly one level, so top-level keys need their own entry.
+  // pino wildcards match exactly ONE level: 'document', '*.document' and
+  // '*.*.document' are three different paths. Depth 0..2 covers every shape the
+  // code logs; deeper nesting is not redacted (see STATE.md, adversarial review).
   'document',
   '*.document',
+  '*.*.document',
   'email',
   '*.email',
+  '*.*.email',
   '*.name',
   'notes',
   '*.notes',
