@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { IDEMPOTENCY_KEY_RE, orderPayloadSchema } from '../domain/order.js';
-import { findOrderView, insertOrder } from '../infra/db/orders.repo.js';
+import { requestHash } from '../domain/request-hash.js';
+import { findOrderView, insertOrderIdempotent } from '../infra/db/orders.repo.js';
 import { AppError } from './errors.js';
 
 /** Validation details carry path + rule only, never the received value (REQ-API-02). */
@@ -30,13 +31,28 @@ export function registerOrderRoutes(app: FastifyInstance, pool: pg.Pool): void {
     const parsed = orderPayloadSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error);
 
-    const order = await insertOrder(pool, {
+    const result = await insertOrderIdempotent(pool, {
       idempotencyKey: key,
-      requestHash: '0'.repeat(64), // replaced by the canonical hash in T-05
+      requestHash: requestHash(parsed.data),
       payload: parsed.data,
       correlationId: request.id,
     });
-    return reply.status(202).header('location', `/orders/${order.id}`).send(order);
+    switch (result.kind) {
+      case 'CREATED':
+        return reply.status(202).header('location', `/orders/${result.order.id}`).send(result.order);
+      case 'REPLAYED':
+        return reply
+          .status(200)
+          .header('location', `/orders/${result.order.id}`)
+          .header('idempotent-replayed', 'true')
+          .send(result.order);
+      case 'KEY_REUSED':
+        throw new AppError(
+          422,
+          'IDEMPOTENCY_KEY_REUSED',
+          'Idempotency-Key was already used with a different payload',
+        );
+    }
   });
 
   app.get<{ Params: { id: string } }>('/orders/:id', async (request) => {

@@ -5,15 +5,26 @@ import type { OrderPayload, OrderStatus } from '../../domain/order.js';
 
 export type CreatedOrder = { id: string; status: OrderStatus; createdAt: Date };
 
-/** Inserts the order and its CREATED event in a single statement. */
-export async function insertOrder(
+export type InsertResult =
+  | { kind: 'CREATED'; order: CreatedOrder }
+  | { kind: 'REPLAYED'; order: CreatedOrder }
+  | { kind: 'KEY_REUSED' };
+
+/**
+ * REQ-IDEM-01..03, REQ-CONC-01/02. Atomic insert-or-nothing guarded by the UNIQUE
+ * constraint; the CREATED event is part of the same statement. On conflict the
+ * INSERT waits for the competing transaction, so the follow-up SELECT (new
+ * statement, new snapshot) always sees the committed winner. No SELECT-then-INSERT.
+ */
+export async function insertOrderIdempotent(
   pool: pg.Pool,
   input: { idempotencyKey: string; requestHash: string; payload: OrderPayload; correlationId: string },
-): Promise<CreatedOrder> {
-  const { rows } = await pool.query<{ id: string; status: OrderStatus; created_at: Date }>(
+): Promise<InsertResult> {
+  const inserted = await pool.query<{ id: string; status: OrderStatus; created_at: Date }>(
     `WITH ins AS (
        INSERT INTO orders (idempotency_key, request_hash, payload, correlation_id)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING id, status, created_at, correlation_id
      ), ev AS (
        INSERT INTO order_events (order_id, type, to_status, correlation_id)
@@ -22,8 +33,20 @@ export async function insertOrder(
      SELECT id, status, created_at FROM ins`,
     [input.idempotencyKey, input.requestHash, input.payload, input.correlationId],
   );
-  const row = rows[0]!;
-  return { id: row.id, status: row.status, createdAt: row.created_at };
+  const row = inserted.rows[0];
+  if (row) return { kind: 'CREATED', order: { id: row.id, status: row.status, createdAt: row.created_at } };
+
+  const existing = await pool.query<{ id: string; status: OrderStatus; created_at: Date; request_hash: string }>(
+    'SELECT id, status, created_at, request_hash FROM orders WHERE idempotency_key = $1',
+    [input.idempotencyKey],
+  );
+  const found = existing.rows[0];
+  if (!found) {
+    // Only possible if the row were deleted between the two statements; orders are never deleted.
+    throw new Error('idempotency conflict without an existing row');
+  }
+  if (found.request_hash !== input.requestHash) return { kind: 'KEY_REUSED' };
+  return { kind: 'REPLAYED', order: { id: found.id, status: found.status, createdAt: found.created_at } };
 }
 
 export type OrderView = {

@@ -10,7 +10,7 @@ Estado vivo do trabalho e registro de desvios de processo. Atualizado a cada tar
 | 1. Requisitos | aprovada (2026-11-05) |
 | 2. Plano + ADRs | aprovada (2026-11-05) |
 | 3. Tarefas | aprovada (2026-11-05) |
-| 4. Implementação | T-01..T-04 concluídas; em andamento |
+| 4. Implementação | T-01..T-05 concluídas; em andamento (test:stress da T-05: 5/5 verde) |
 | 5. Fechamento | pendente |
 
 Pré-requisito local: Docker Desktop em execução (`docker compose up -d --wait db`).

@@ -54,7 +54,7 @@ T-05 + T-06 + T-07 → T-08 → T-09 → T-10 → T-11 → T-12 → T-13 → T-1
 - **Pronto quando:** fluxo feliz e validações passam; nenhum SQL concatenado.
 - **Commit:** `feat(orders): T-04 create and read order endpoints [REQ-API-01..05, REQ-SEC-03]`
 
-### [ ] T-05: Idempotência (ON CONFLICT + request_hash) e concorrência no POST
+### [x] T-05: Idempotência (ON CONFLICT + request_hash) e concorrência no POST
 - **Objetivo:** hash canônico; `INSERT ... ON CONFLICT DO NOTHING` com o evento na mesma instrução; replay 200 com estado atual; 422 para hash divergente.
 - **REQ:** REQ-IDEM-01, REQ-IDEM-02, REQ-IDEM-03, REQ-CONC-01, REQ-CONC-02
 - **Arquivos:** `src/domain/request-hash.ts`, `src/infra/db/orders.repo.ts`, `src/http/orders.routes.ts`, `test/unit/request-hash.test.ts`, `test/integration/idempotency.test.ts`, `test/integration/concurrency-post.test.ts`
