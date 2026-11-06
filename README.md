@@ -40,6 +40,18 @@ O fluxo funcional é:
 
 Estados do pedido: `PENDING → PROCESSING → SENT | RETRY_SCHEDULED | FAILED | UNCERTAIN | NEEDS_REVIEW`. `SENT` é terminal.
 
+## Arquitetura e decisões técnicas
+
+A solução roda em um único processo Node.js com TypeScript, que contém a API HTTP e um worker assíncrono, e o PostgreSQL faz três papéis: fonte da verdade, fila de processamento e trilha de auditoria. A principal decisão foi desacoplar o recebimento do pedido do envio ao ERP. A API apenas registra o pedido e responde imediatamente, e o worker cuida da integração em segundo plano, então a lentidão ou queda do ERP nunca bloqueia o cliente. Usar o próprio banco como fila evita um broker adicional e mantém pedido, estado e histórico sempre consistentes.
+
+## Idempotência, concorrência e tratamento de falhas
+
+A idempotência é garantida pelo banco de dados, e não pela aplicação. Cada pedido carrega uma chave única fornecida pelo cliente, e repetições com a mesma chave devolvem o pedido original em vez de criar outro. Na concorrência, apenas um worker por vez assume cada pedido, por meio de um lease temporário, e um worker que perdeu o lease não consegue sobrescrever o resultado de outro. Falhas transitórias do ERP são repetidas com intervalos crescentes, e erros de negócio encerram o pedido. Quando o resultado é ambíguo, como num timeout em que o ERP pode ter processado o pedido, o sistema nunca reenvia às cegas: consulta o ERP antes de tentar de novo e, sem resposta conclusiva, encaminha o pedido para revisão manual.
+
+## O que foi implementado e o que ficou como proposta
+
+Foram implementados o recebimento idempotente de pedidos, a consulta de status com histórico completo, o reprocessamento manual, o worker com retry e reconciliação, os logs estruturados sem dados pessoais e uma suíte de testes contra um banco real, cobrindo os cenários de concorrência e de falha. O ERP é simulado, mas reproduz sucesso, erros transitórios e permanentes, timeout e pedido processado com resposta perdida. Ficaram como proposta para produção a integração com um ERP real via HTTP, autenticação e controle de acesso, expiração das chaves de idempotência, métricas, alertas e rastreamento distribuído, além de criptografia e política de retenção dos dados pessoais.
+
 ## Estrutura do repositório
 
 ```
